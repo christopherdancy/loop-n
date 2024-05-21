@@ -2,6 +2,7 @@
 
 import { useWallet } from '@solana/wallet-adapter-react';
 import { WalletButton } from '../solana/solana-provider';
+import { AppHero } from '../ui/ui-layout';
 
 import { redirect } from 'next/navigation';
 
@@ -13,10 +14,9 @@ export default function AccountListFeature() {
   }
 
   return (
-    <div className="hero py-[64px]">
-      <div className="hero-content text-center">
-        <WalletButton />
-      </div>
+    <div >
+      <AppHero title="gm" subtitle="loop(n) here" />
+      <WalletButton />
     </div>
   );
 }

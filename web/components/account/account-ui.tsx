@@ -1,5 +1,5 @@
 'use client';
-
+import React from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { LAMPORTS_PER_SOL, PublicKey } from '@solana/web3.js';
 import { IconRefresh } from '@tabler/icons-react';
@@ -15,18 +15,54 @@ import {
   useRequestAirdrop,
   useTransferSol,
 } from './account-data-access';
+import {  useDriftProgramAccount } from '../drift/drift-data-access';
+
 
 export function AccountBalance({ address }: { address: PublicKey }) {
   const query = useGetBalance({ address });
 
+  // return (
+  //   <div>
+  //     <h1
+  //       className="text-5xl font-bold cursor-pointer"
+  //       onClick={() => query.refetch()}
+  //     >
+  //       {query.data ? <BalanceSol balance={query.data} /> : '...'} SOL
+  //     </h1>
+  //   </div>
+  // );
+
   return (
-    <div>
-      <h1
-        className="text-5xl font-bold cursor-pointer"
-        onClick={() => query.refetch()}
-      >
-        {query.data ? <BalanceSol balance={query.data} /> : '...'} SOL
-      </h1>
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold">Connect</h2>
+        {/* <button className="btn btn-sm btn-outline" onClick={handleConnectWallet}>
+          Connect Wallet
+        </button> */}
+      </div>
+      {/* {error && (
+        <pre className="alert alert-error">
+          Error: {error.message.toString()}
+        </pre>
+      )} */}
+      {/* {loading ? (
+        <span className="loading loading-spinner"></span>
+      ) : (
+        accountInfo && ( */}
+          <div className="border-4 rounded-lg p-4 space-y-4 border-separate border-base-300">
+            <div className="flex justify-between items-center">
+              <span className="font-mono">Address:</span>
+              {/* <span className="font-mono text-right">{walletAddress}</span> */}
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="font-mono">Balance:</span>
+              <span className="text-5xl font-bold cursor-pointer" onClick={() => window.location.reload()}>
+                {query.data ? <BalanceSol balance={query.data} /> : '...'} SOL
+              </span>
+            </div>
+          </div>
+        {/* )
+      )} */}
     </div>
   );
 }
@@ -66,9 +102,11 @@ export function AccountBalanceCheck({ address }: { address: PublicKey }) {
   return null;
 }
 
-export function AccountButtons({ address }: { address: PublicKey }) {
-  const wallet = useWallet();
-  const { cluster } = useCluster();
+export function AccountButtons({address}: {address: PublicKey}) {
+  const wallet = useWallet(); // why is this needed?
+  const {initializeUserAccountMutation, depositMutation, withdrawMutation, openHedgeMutation, closeHedgeMutation} = useDriftProgramAccount(address);
+
+  // const { cluster } = useCluster();
   const [showAirdropModal, setShowAirdropModal] = useState(false);
   const [showReceiveModal, setShowReceiveModal] = useState(false);
   const [showSendModal, setShowSendModal] = useState(false);
@@ -91,26 +129,59 @@ export function AccountButtons({ address }: { address: PublicKey }) {
         hide={() => setShowSendModal(false)}
       />
       <div className="space-x-2">
-        <button
+        {/* <button
           disabled={cluster.network?.includes('mainnet')}
           className="btn btn-xs lg:btn-md btn-outline"
           onClick={() => setShowAirdropModal(true)}
         >
           Airdrop
-        </button>
+        </button> */}
         <button
-          disabled={wallet.publicKey?.toString() !== address.toString()}
+          disabled={wallet.publicKey?.toString() !== address.toString() }
           className="btn btn-xs lg:btn-md btn-outline"
-          onClick={() => setShowSendModal(true)}
+          onClick={() => initializeUserAccountMutation.mutateAsync()}
         >
-          Send
+          Create Account
         </button>
+
         <button
+          disabled={wallet.publicKey?.toString() !== address.toString() }
+          className="btn btn-xs lg:btn-md btn-outline"
+          onClick={() => depositMutation.mutateAsync()}
+        >
+          Deposit USDC
+        </button>
+
+        <button
+          disabled={wallet.publicKey?.toString() !== address.toString() }
+          className="btn btn-xs lg:btn-md btn-outline"
+          onClick={() => withdrawMutation.mutateAsync()}
+        >
+          Withdraw USDC
+        </button>
+
+        <button
+          disabled={wallet.publicKey?.toString() !== address.toString() }
+          className="btn btn-xs lg:btn-md btn-outline"
+          onClick={() => openHedgeMutation.mutateAsync()}
+        >
+          Open Hedge
+        </button>
+
+        <button
+          disabled={wallet.publicKey?.toString() !== address.toString() }
+          className="btn btn-xs lg:btn-md btn-outline"
+          onClick={() => closeHedgeMutation.mutateAsync()}
+        >
+          Close Hedge
+        </button>
+        {/* <button
           className="btn btn-xs lg:btn-md btn-outline"
           onClick={() => setShowReceiveModal(true)}
         >
           Receive
-        </button>
+        </button> */}
+        {/* <LoopnList/> */}
       </div>
     </div>
   );
