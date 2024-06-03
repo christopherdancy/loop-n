@@ -7,12 +7,20 @@ import {
   getUserAccountPublicKey, 
   getDriftStateAccountPublicKey, 
   getUserStatsAccountPublicKey, 
-  getSpotMarketPublicKey, 
   getSpotMarketVaultPublicKey, 
   convertUSDCtoSmallestUnit,
-  getDriftSignerPublicKey
+  getDriftSignerPublicKey,
+  UserAccount,
+  findAllMarkets,
+  PerpMarketAccount,
+  PositionDirection,
+  getMarketOrderParams,
+  MarketType,
+  getOrderParams,
+  StateAccount,
+  FeeTier
 } from './drift-exports';
-import { BN, Program } from '@coral-xyz/anchor';
+import { Program } from '@coral-xyz/anchor';
 import * as anchor from '@coral-xyz/anchor';
 import { useConnection } from '@solana/wallet-adapter-react';
 import { Cluster, PublicKey, Transaction } from '@solana/web3.js';
@@ -51,12 +59,6 @@ export function useDriftProgram() {
   };
 }
 
-export class PositionDirection {
-	static readonly LONG = { long: {} };
-	static readonly SHORT = { short: {} };
-}
-
-
 // todo: deposit method + create short + close short (test functionality)
 // todo: read account + balance + open position 
 // todo: configure short and deposit based on sol balance + value (POC)
@@ -66,151 +68,79 @@ export function useDriftProgramAccount(account: PublicKey) {
     program, 
     provider, 
     cluster, 
-    connection
+    // connection
    } = useDriftProgram();
-  const [userPublicKey, setUserPublicKey] = useState<PublicKey | null>(null);
-  const [statePublicKey, setStatePublicKey] = useState<PublicKey | null>(null);
-  const [, setSpotMarketPublicKey] = useState<PublicKey | null>(null);
-  const [vaultPublicKey, setVaultPublicKey] = useState<PublicKey | null>(null);
-  const [signerPublicKey, setSignerPublicKey] = useState<PublicKey | null>(null);
+  const [userPublicKey, setUserPublicKey] = useState<PublicKey | undefined>(undefined);
+  const [statePublicKey, setStatePublicKey] = useState<PublicKey | undefined>(undefined);
+  const [vaultPublicKey, setVaultPublicKey] = useState<PublicKey | undefined>(undefined);
+  const [signerPublicKey, setSignerPublicKey] = useState<PublicKey | undefined>(undefined);
+  const [userAccount, setUserAccount] = useState<UserAccount | undefined>(undefined);
+  const [perpMarkets, setPerpMarkets] = useState<PerpMarketAccount[] | undefined>(undefined);
+  const [fees, setFees] = useState<FeeTier | undefined>(undefined)
+  const [, setIsLoadingPublicKeys] = useState(true);
+  const [isLoadingPerpMarkets, setIsLoadingPerpMarkets] = useState(true);
+  const [isLoadingUserAccount, setIsLoadingUserAccount] = useState(true);
+  const [, setError] = useState<Error | undefined>(undefined);
   const userStatsPublicKey = getUserStatsAccountPublicKey(program.programId, account);
 
   const pub = { pubkey: new PublicKey("BwBL7eWa9XABw4QzwAnDxeVPcgHWhtbbaNUYLmiThVmj"), isWritable: true, isSigner: false };
-  const account1 = { pubkey: new PublicKey("5SSkXsEKQepHHAewytPVwdej4epN1nxgLVM84L4KXgy7"), isWritable: false, isSigner: false };
-  const account2 = { pubkey: new PublicKey("6gMq3mRCKf8aP3ttTyYhuijVZ2LGi14oDsBbkgubfLB3"), isWritable: true, isSigner: false };
-  const account3 = { pubkey: new PublicKey("J83w4HKfqxwcq3BEMMkPFSppX3gqekLyLJBexebFVkix"), isWritable: true, isSigner: false };
-  const account4 = { pubkey: new PublicKey("3x85u7SWkmmr7YQGYhtjARgxwegTLJgkSLRprfXod6rh"), isWritable: true, isSigner: false };
-  const BASE_PRECISION = new anchor.BN(10).pow(new anchor.BN(9));
-  class OrderType {
-    static readonly LIMIT = { limit: {} };
-    static readonly TRIGGER_MARKET = { triggerMarket: {} };
-    static readonly TRIGGER_LIMIT = { triggerLimit: {} };
-    static readonly MARKET = { market: {} };
-    static readonly ORACLE = { oracle: {} };
-  }
-  type NecessaryOrderParams = {
-    orderType: OrderType;
-    marketIndex: number;
-    baseAssetAmount: BN;
-    direction: PositionDirection;
-  };
-  class MarketType {
-    static readonly SPOT = { spot: {} };
-    static readonly PERP = { perp: {} };
-  }
 
-  class PostOnlyParams {
-    static readonly NONE = { none: {} };
-    static readonly MUST_POST_ONLY = { mustPostOnly: {} }; // Tx fails if order can't be post only
-    static readonly TRY_POST_ONLY = { tryPostOnly: {} }; // Tx succeeds and order not placed if can't be post only
-    static readonly SLIDE = { slide: {} }; // Modify price to be post only if can't be post only
-  }
-
-  class OrderTriggerCondition {
-    static readonly ABOVE = { above: {} };
-    static readonly BELOW = { below: {} };
-    static readonly TRIGGERED_ABOVE = { triggeredAbove: {} }; // above condition has been triggered
-    static readonly TRIGGERED_BELOW = { triggeredBelow: {} }; // below condition has been triggered
-  }
-
-  type OrderParams = {
-    orderType: OrderType;
-    marketType: MarketType;
-    userOrderId: number;
-    direction: PositionDirection;
-    baseAssetAmount: BN;
-    price: BN;
-    marketIndex: number;
-    reduceOnly: boolean;
-    postOnly: PostOnlyParams;
-    immediateOrCancel: boolean;
-    triggerPrice: BN | null;
-    triggerCondition: OrderTriggerCondition;
-    oraclePriceOffset: number | null;
-    auctionDuration: number | null;
-    maxTs: BN | null;
-    auctionStartPrice: BN | null;
-    auctionEndPrice: BN | null;
-  };
-  const ZERO = new anchor.BN(0)
-
-  const DefaultOrderParams: OrderParams = {
-    orderType: OrderType.ORACLE,
-    marketType: MarketType.PERP,
-    userOrderId: 0,
-    direction: PositionDirection.LONG,
-    baseAssetAmount: ZERO,
-    price: ZERO,
-    marketIndex: 0,
-    reduceOnly: false,
-    postOnly: PostOnlyParams.NONE,
-    immediateOrCancel: false,
-    triggerPrice: null,
-    triggerCondition: OrderTriggerCondition.ABOVE,
-    oraclePriceOffset: null,
-    auctionDuration: null,
-    maxTs: null,
-    auctionStartPrice: null,
-    auctionEndPrice: null,
+  const fetchPublicKeys = async () => {
+    setIsLoadingPublicKeys(true);
+    setError(undefined);
+    try {
+      const user = await getUserAccountPublicKey(program.programId, account, 0);
+      const stateAccount = await getDriftStateAccountPublicKey(program.programId);
+      const vault = await getSpotMarketVaultPublicKey(program.programId, 0);
+      const signer = await getDriftSignerPublicKey(program.programId);
+      const stateAccountFetch = await program.account.state.fetch(stateAccount) as StateAccount
+      setFees(stateAccountFetch.perpFeeStructure.feeTiers[0])
+      setUserPublicKey(user);
+      setStatePublicKey(stateAccount);
+      setVaultPublicKey(vault);
+      setSignerPublicKey(signer);
+    } catch (err) {
+      setError(err as Error);
+    } finally {
+      setIsLoadingPublicKeys(false);
+    }
   };
   
-  type OptionalOrderParams = {
-    [Property in keyof OrderParams]?: OrderParams[Property];
-  } & NecessaryOrderParams;
-  
-  function getMarketOrderParams(
-    params: Omit<OptionalOrderParams, 'orderType'>
-  ): OptionalOrderParams {
-    return Object.assign({}, params, {
-      orderType: OrderType.ORACLE,
-    });
-  }
 
-  function getOrderParams(
-    optionalOrderParams: OptionalOrderParams,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    overridingParams: Record<string, any> = {}
-  ): OrderParams {
-    return Object.assign(
-      {},
-      DefaultOrderParams,
-      optionalOrderParams,
-      overridingParams
-    );
-  }
+  const fetchUserAccount = async () => {
+    setIsLoadingUserAccount(true);
+    setError(undefined);
+    try {
+      const user = await getUserAccountPublicKey(program.programId, account, 0);
+      const userAccountData = await program.account.user.fetch(user) as UserAccount;
+      setUserAccount(userAccountData);
+    } catch (fetchError) {
+      setError(new Error("User account does not exist."));
+      setUserAccount(undefined);
+    } finally {
+      setIsLoadingUserAccount(false);
+    }
+  };
 
-  
-  // todo: get user account Info for dashboard
-  // async function checkIfAccountExists(account: PublicKey): Promise<boolean> {
-    //   try {
-      //     const accountInfo = await connection.getAccountInfo(account);
-      //     return accountInfo != null;
-      //   } catch (e) {
-        //     // Doesn't already exist
-        //     return false;
-        //   }
-        // }
-        
-        useEffect(() => {
-        // Asynchronously fetch the user public key
-        const fetchPublicKeys = async () => {
-          try {
-            const user = await getUserAccountPublicKey(program.programId, account, 0);
-            const stateAccount = await getDriftStateAccountPublicKey(program.programId);
-            const spotMarket = await getSpotMarketPublicKey(program.programId, 0);
-            const vault = await getSpotMarketVaultPublicKey(program.programId, 0);
-            const signer = await getDriftSignerPublicKey(program.programId)
-        setUserPublicKey(user);
-        setStatePublicKey(stateAccount);
-        setSpotMarketPublicKey(spotMarket);
-        setVaultPublicKey(vault);
-        setSignerPublicKey(signer)
-      } catch (error) {
-        console.error("Error fetching user public key:", error);
-      }
-    };
+  const fetchPerpMarkets = async () => {
+    setIsLoadingPerpMarkets(true);
+    setError(undefined);
+    try {
+      const perpMarkets = (await findAllMarkets(program)).perpMarkets
+      setPerpMarkets(perpMarkets);
+    } catch (fetchError) {
+      setError(new Error("Perp accounts does not exist."));
+      setPerpMarkets(undefined);
+    } finally {
+      setIsLoadingPerpMarkets(false);
+    }
+  };
 
+
+  useEffect(() => {
     fetchPublicKeys();
+    fetchUserAccount();
+    fetchPerpMarkets();
   }, [program.programId, account]);
 
 
@@ -221,6 +151,7 @@ export function useDriftProgramAccount(account: PublicKey) {
       if (!userPublicKey || !statePublicKey || !userStatsPublicKey) {
         throw new Error("Public keys are not ready.");
       }
+      
 
       // Initialize User Stats transaction instruction
       const initializeUserStatsIx = await program.methods.initializeUserStats()
@@ -262,13 +193,12 @@ export function useDriftProgramAccount(account: PublicKey) {
     },
     onSuccess: (txSig) => {
       transactionToast(txSig);
+      fetchUserAccount();
     },
     onError: (error) => {
       console.error("Failed to initialize user and stats:", error);
     },
   });
-
-  // the product should show the user what they need to deposit based on simulation
 
   const depositMutation = useMutation({
     mutationKey: ['drift', 'depositFunds', { cluster, account }],
@@ -289,7 +219,10 @@ export function useDriftProgramAccount(account: PublicKey) {
             tokenProgram: TOKEN_PROGRAM_ID,
         }
         )
-        .remainingAccounts([account1, account2]) 
+        .remainingAccounts([
+          { pubkey: new PublicKey("5SSkXsEKQepHHAewytPVwdej4epN1nxgLVM84L4KXgy7"), isWritable: false, isSigner: false }, 
+          { pubkey: new PublicKey("6gMq3mRCKf8aP3ttTyYhuijVZ2LGi14oDsBbkgubfLB3"), isWritable: true, isSigner: false }
+        ]) 
         .instruction();
 
       const tx = new Transaction().add(depositInstruction);
@@ -297,13 +230,10 @@ export function useDriftProgramAccount(account: PublicKey) {
       const txSig = await provider.sendAndConfirm(tx);
       return txSig;
 
-      // const simulationResult = await connection.simulateTransaction(tx);
-      // if (simulationResult.value.err) {
-      //   console.log("Simulation error:", simulationResult.value.logs);
-      // }
     },
     onSuccess: (txSig) => {
       transactionToast(txSig);
+      fetchUserAccount();
     },
     onError: (error) => {
       console.error("Failed to deposit funds:", error);
@@ -330,7 +260,12 @@ export function useDriftProgramAccount(account: PublicKey) {
             driftSigner: signerPublicKey,
         }
         )
-        .remainingAccounts([account1, account3, account2, account4]) 
+        .remainingAccounts([
+          { pubkey: new PublicKey("5SSkXsEKQepHHAewytPVwdej4epN1nxgLVM84L4KXgy7"), isWritable: false, isSigner: false }, 
+          { pubkey: new PublicKey("J83w4HKfqxwcq3BEMMkPFSppX3gqekLyLJBexebFVkix"), isWritable: true, isSigner: false }, 
+          { pubkey: new PublicKey("6gMq3mRCKf8aP3ttTyYhuijVZ2LGi14oDsBbkgubfLB3"), isWritable: true, isSigner: false }, 
+          { pubkey: new PublicKey("3x85u7SWkmmr7YQGYhtjARgxwegTLJgkSLRprfXod6rh"), isWritable: true, isSigner: false }
+        ]) 
         .instruction();
 
       const tx = new Transaction().add(withdrawInstruction);
@@ -345,19 +280,24 @@ export function useDriftProgramAccount(account: PublicKey) {
     },
     onSuccess: (txSig) => {
       transactionToast(txSig);
+      fetchUserAccount()
     },
     onError: (error) => {
       console.error("Failed to deposit funds:", error);
     },
   });
 
+  // I will need to know the users collateral requirements and current collateral to make sure the trade goes through
+  // I will need to pass the baseAssetAmount
+  // I will need to pass the marketIndex
+  // the ui will need to know the basic questions around expected collateral and blah blah blah
   const openHedgeMutation = useMutation({
     mutationKey: ['drift', 'openHedge', { cluster, account }],
-    mutationFn: async () => {
+    mutationFn: async ({ baseAssetAmount, marketIndex }: {baseAssetAmount: number, marketIndex: number}) => {
       const orderParams = getMarketOrderParams({
-        baseAssetAmount: new anchor.BN(1).mul(BASE_PRECISION),
+        baseAssetAmount: baseAssetAmount,
         direction: PositionDirection.SHORT,
-        marketIndex: 16,
+        marketIndex: marketIndex,
       });
       // Create deposit instruction
       const openHedgeInstruction = await program.methods.placePerpOrder(
@@ -471,11 +411,17 @@ export function useDriftProgramAccount(account: PublicKey) {
   });
 
   return {
-    // accountQuery,
     initializeUserAccountMutation,
     depositMutation,
     withdrawMutation,
     openHedgeMutation,
-    closeHedgeMutation
+    closeHedgeMutation,
+    userAccount,
+    perpMarkets,
+    isLoadingUserAccount,
+    isLoadingPerpMarkets,
+    refetchPerpMarkets: fetchPerpMarkets,
+    refetchUserAccount: fetchUserAccount, 
+    fees
   };
 }

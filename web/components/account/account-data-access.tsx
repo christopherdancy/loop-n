@@ -14,6 +14,8 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { useTransactionToast } from '../ui/ui-layout';
+import { TokenListProvider, TokenInfo } from '@solana/spl-token-registry';
+
 
 export function useGetBalance({ address }: { address: PublicKey }) {
   const { connection } = useConnection();
@@ -42,15 +44,39 @@ export function useGetTokenAccounts({ address }: { address: PublicKey }) {
       { endpoint: connection.rpcEndpoint, address },
     ],
     queryFn: async () => {
-      const [tokenAccounts, token2022Accounts] = await Promise.all([
+      const [tokenAccounts, token2022Accounts, tokenList] = await Promise.all([
         connection.getParsedTokenAccountsByOwner(address, {
           programId: TOKEN_PROGRAM_ID,
         }),
         connection.getParsedTokenAccountsByOwner(address, {
           programId: TOKEN_2022_PROGRAM_ID,
         }),
+        new TokenListProvider().resolve().then((tokens) => tokens.getList()),
       ]);
-      return [...tokenAccounts.value, ...token2022Accounts.value];
+
+      const accounts = [...tokenAccounts.value, ...token2022Accounts.value];
+
+      const tokenMap = new Map<string, TokenInfo>();
+      tokenList.forEach((token) => {
+        tokenMap.set(token.address, token);
+      });
+
+      return accounts.map((account) => {
+        const mintAddress = account.account.data.parsed.info.mint;
+        const tokenInfo = tokenMap.get(mintAddress);
+        return {
+          ...account,
+          tokenInfo: tokenInfo ? {
+            name: tokenInfo.name,
+            symbol: tokenInfo.symbol,
+            logoURI: tokenInfo.logoURI,
+          } : {
+            name: mintAddress === "8zGuJQqwhZafTah7Uc7Z4tXRnguqkn5KLFAP8oV6PHe2" ? "USDC" : mintAddress === "9Su8ynv5xhMa12bfqQLkW1Y4aeSxQKD9EiaMNb1JQLay" ? "LINK" : 'Unknown Token',
+            symbol: mintAddress === "8zGuJQqwhZafTah7Uc7Z4tXRnguqkn5KLFAP8oV6PHe2" ? "USDC" : mintAddress === "9Su8ynv5xhMa12bfqQLkW1Y4aeSxQKD9EiaMNb1JQLay" ? "LINK" : 'Unknown Token',
+            logoURI: null,
+          },
+        };
+      });
     },
   });
 }

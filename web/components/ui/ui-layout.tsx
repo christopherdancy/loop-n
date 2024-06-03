@@ -7,7 +7,7 @@ import { ReactNode, Suspense, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
-import { AccountChecker } from '../account/account-ui';
+// import { AccountChecker } from '../account/account-ui';
 import {
   ClusterChecker,
   ClusterUiSelect,
@@ -54,7 +54,7 @@ export function UiLayout({
         </div>
       </div>
       <ClusterChecker>
-        <AccountChecker />
+        {/* <AccountChecker /> */}
       </ClusterChecker>
       <div className="flex-grow mx-4 lg:mx-auto">
         <Suspense
@@ -148,12 +148,12 @@ export function AppHero({
 }: {
   children?: ReactNode;
   title: ReactNode;
-  subtitle: ReactNode;
+  subtitle?: ReactNode;
 }) {
   return (
     <div className="hero py-[64px]">
       <div className="hero-content text-center">
-        <div className="max-w-2xl">
+        <div className="max-w-4xl">
           {typeof title === 'string' ? (
             <h1 className="text-5xl font-bold">{title}</h1>
           ) : (
