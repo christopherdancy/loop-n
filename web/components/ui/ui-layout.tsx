@@ -9,7 +9,7 @@ import { usePathname } from 'next/navigation';
 
 // import { AccountChecker } from '../account/account-ui';
 import {
-  ClusterChecker,
+  // ClusterChecker,
   ClusterUiSelect,
   ExplorerLink,
 } from '../cluster/cluster-ui';
@@ -53,9 +53,9 @@ export function UiLayout({
           <ClusterUiSelect />
         </div>
       </div>
-      <ClusterChecker>
-        {/* <AccountChecker /> */}
-      </ClusterChecker>
+      {/* <ClusterChecker>
+        <AccountChecker />
+      </ClusterChecker> */}
       <div className="flex-grow mx-4 lg:mx-auto">
         <Suspense
           fallback={
@@ -115,6 +115,13 @@ export function AppModal({
     }
   }, [show, dialogRef]);
 
+  const handleSubmit = () => {
+    if (submit) {
+      submit();
+    }
+    hide();
+  };
+
   return (
     <dialog className="modal" ref={dialogRef}>
       <div className="modal-box space-y-5">
@@ -124,8 +131,8 @@ export function AppModal({
           <div className="join space-x-2">
             {submit ? (
               <button
-                className="btn btn-xs lg:btn-md btn-primary"
-                onClick={submit}
+                className="btn btn-primary"
+                onClick={handleSubmit}
                 disabled={submitDisabled}
               >
                 {submitLabel || 'Save'}

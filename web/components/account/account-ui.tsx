@@ -1,54 +1,95 @@
+/* eslint-disable no-unsafe-optional-chaining */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
-import React, { useEffect } from 'react';
-import { useWallet } from '@solana/wallet-adapter-react';
-import { LAMPORTS_PER_SOL, PublicKey } from '@solana/web3.js';
+import React, { Dispatch, SetStateAction, useEffect } from 'react';
+import { PublicKey } from '@solana/web3.js';
 import { IconRefresh } from '@tabler/icons-react';
-import { useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
-import { AppModal, ellipsify } from '../ui/ui-layout';
-import { ExplorerLink } from '../cluster/cluster-ui';
+import { AppModal } from '../ui/ui-layout';
 import {
   useGetBalance,
   useGetTokenAccounts,
-  useRequestAirdrop,
-  useTransferSol,
 } from './account-data-access';
 import { useDriftProgramAccount } from '../drift/drift-data-access';
-import { AMM_RESERVE_PRECISION, BASE_PRECISION, FeeTier, Order, PerpMarketAccount, PerpMarketConfigs, PerpPosition, UserAccount, ZERO, calculateBaseAssetValueWithOracle, calculateBidAskPrice, calculateEntryPrice, decodeName, formatPercentageChange, formatTokenAmount, getActivePerpPositionsForUserAccount, getMarketConfigByIndex, getOpenOrdersForUserAccount, getPositionEstimatedExitPriceAndPnl } from '../drift/drift-exports';
+import { 
+  BASE_PRECISION,
+  PerpMarketConfigs, 
+  calculateBaseAssetValueWithOracle, 
+  calculateEntryPrice, 
+  calculateTakerFee, 
+  decodeName, 
+  formatPercentageChange, 
+  formatTokenAmount, 
+  getActivePerpPositionsForUserAccount, 
+  getMarketConfigByIndex, 
+  getOpenOrdersForUserAccount, 
+  getPositionEstimatedExitPriceAndPnl 
+} from '../drift/drift-exports';
 import { BN } from '@coral-xyz/anchor';
-import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend } from 'chart.js';
 import { Line } from 'react-chartjs-2';
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
 import * as anchor from '@coral-xyz/anchor';
+import { UserAccount, PerpMarketAccount, PerpPosition, Order, PositionDirection, OrderTriggerCondition, OrderStatus, OrderType, MarketType } from '../drift/types';
+import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend } from 'chart.js';
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
 
-function calculateTakerFee(estimatedEntryPrice: number, positionBaseSizeChange: number, feeTier: FeeTier | undefined) {
-  if (estimatedEntryPrice === 0 || positionBaseSizeChange === 0 || feeTier === undefined) {
-    return 0;
-  }
+const ZERO = new BN(0);
+const demoFlow = true;
 
-  // Calculate new position value in USD
-  const newPositionValue = (estimatedEntryPrice * Math.abs(positionBaseSizeChange)) / BASE_PRECISION;
+function createDemoOrder(prevOrders:Order[], marketIndex: number, baseAssetAmount: BN): Order[] {
+  const lastOrderId = prevOrders.length > 0 ? prevOrders[prevOrders.length - 1].orderId : 0;
+  const newOrderId = lastOrderId + 1;
 
-  // Calculate taker fee in USD
-  const takerFee = (newPositionValue * feeTier.feeNumerator) / feeTier.feeDenominator;
-  
-  const threshold = 0.01; // Threshold for showing "Less than $0.01"
-  if (Math.abs(takerFee) < threshold) {
-    return "Less than $0.01";
-  }
-  return takerFee.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const demoOrder: Order = {
+    status: OrderStatus.OPEN,
+    orderType: OrderType.MARKET,
+    marketType: MarketType.PERP,
+    slot: new BN(Date.now()),
+    orderId: newOrderId,
+    userOrderId: newOrderId, // Assuming userOrderId follows the same increment pattern
+    marketIndex: marketIndex, // Example market index
+    price: new BN(Math.floor(Math.random() * 1000000)), // Example price in smallest units
+    baseAssetAmount: baseAssetAmount, // Example amount in smallest units
+    quoteAssetAmount: new BN(Math.floor(Math.random() * 1000000)), // Example amount in smallest units
+    baseAssetAmountFilled: new BN(0),
+    quoteAssetAmountFilled: new BN(0),
+    direction: PositionDirection.SHORT, // Example direction
+    reduceOnly: false,
+    triggerPrice: new BN(0),
+    triggerCondition: OrderTriggerCondition.ABOVE,
+    existingPositionDirection: PositionDirection.SHORT,
+    postOnly: false,
+    immediateOrCancel: false,
+    oraclePriceOffset: 0,
+    auctionDuration: 0,
+    auctionStartPrice: new BN(0),
+    auctionEndPrice: new BN(0),
+    maxTs: new BN(Date.now() + 5000), // Example expiration time 1 hour from now
+  };
+
+  prevOrders.push(demoOrder);
+  return prevOrders
+}
+
+function handleDemoCancel(prevOrders: Order[], orderId: number): Order[] {
+  return prevOrders.filter(order => order.orderId !== orderId);
+}
+
+function handleDemoClose(prevPositions: PerpPosition[], baseAssetAmount: BN): PerpPosition[] {
+  return prevPositions.filter(pos => pos.baseAssetAmount !== baseAssetAmount);
 }
 
 export function AccountHedgeSimulation({ address }: { address: PublicKey }) {
-  const { perpMarkets, fees, userAccount, refetchUserAccount,  openHedgeMutation, initializeUserAccountMutation } = useDriftProgramAccount(address);
+  const { perpMarkets, fees, userAccount, loopnHedgeMutation, closeHedgeMutation, cancelOrderMutation } = useDriftProgramAccount(address);
   const tokenQuery = useGetTokenAccounts({ address });
   const solQuery = useGetBalance({ address });
   const [showHedgeModal, setShowHedgeModal] = useState(false);
   const [tokenAmount, setTokenAmount] = useState(50);
   const [hedgeRatio, setHedgeRatio] = useState(50);
-  const [simulationData, setSimulationData] = useState(null);
-  const [selectedToken, setSelectedToken] = useState(PerpMarketConfigs[2]);
+  const [simulationData, setSimulationData] = useState<{priceChange: number, unhedgedValue: number, hedgedValue: number}[]>();
   const [tokenPrice, setTokenPrice] = useState(new anchor.BN(0));
+  const [selectedToken, setSelectedToken] = useState(PerpMarketConfigs[2]);
+  const [demoOrders, setDemoOrders] = useState<Order[]>([])
+  const [demoPositions, setDemoPositions] = useState<PerpPosition[]>([])
   const tokenItems = useMemo(() => {
   const items = tokenQuery.data ? [...tokenQuery.data] : [];
     if (solQuery.data) {
@@ -63,7 +104,12 @@ export function AccountHedgeSimulation({ address }: { address: PublicKey }) {
                 },
               },
             },
+            program: '',
+            space: 0
           },
+          executable: false,
+          owner: new PublicKey("BwBL7eWa9XABw4QzwAnDxeVPcgHWhtbbaNUYLmiThV22"),
+          lamports: 0
         },
         pubkey: address,
         tokenInfo: {
@@ -97,9 +143,42 @@ export function AccountHedgeSimulation({ address }: { address: PublicKey }) {
     runSimulation();
   }, [tokenPrice, tokenAmount, hedgeRatio]);
 
+    // Convert expired orders to positions
+  useEffect(() => {
+    if (demoFlow) {
+      const interval = setInterval(() => {
+        const now = Date.now();
+        const expiredOrders = demoOrders.filter((order) => order.maxTs.toNumber() <= now);
+        if (expiredOrders.length > 0) {
+          const newPositions = expiredOrders.map((order) => ({
+            baseAssetAmount: order.baseAssetAmount,
+            lastCumulativeFundingRate: new BN(0),
+            marketIndex: order.marketIndex,
+            quoteAssetAmount: order.quoteAssetAmount,
+            quoteEntryAmount: new BN(-826426711),
+            quoteBreakEvenAmount: order.quoteAssetAmount,
+            openOrders: 0,
+            openBids: new BN(0),
+            openAsks: new BN(0),
+            settledPnl: new BN(0),
+            lpShares: new BN(0),
+            remainderBaseAssetAmount: 0,
+            lastBaseAssetAmountPerLp: new BN(0),
+            lastQuoteAssetAmountPerLp: new BN(0),
+            perLpBase: 0,
+          }));
+          setDemoPositions((prev) => [...prev, ...newPositions]);
+          setDemoOrders((prev) => prev.filter((order) => order.maxTs.toNumber() > now));
+        }
+      }, 1000); // Check every second
+      return () => clearInterval(interval);
+    } 
+  }, [demoOrders]);
+
   const handleTokenChange = (e: { target: { value: string; }; }) => {
     const token = PerpMarketConfigs.find(token => token.symbol === e.target.value);
-    setSelectedToken(token);
+    if (token) 
+      setSelectedToken(token);
   };
 
   const handleBaseAssetAmountChange = (e: { target: { value: any; }; }) => {
@@ -156,26 +235,34 @@ export function AccountHedgeSimulation({ address }: { address: PublicKey }) {
   // todo: how to visualize portfolio.val vs est.entryPrice
   return (
     <div className="space-y-4">
-      {/* <ModalHedge
+      {showHedgeModal && 
+      <ModalHedge
         hide={() => setShowHedgeModal(false)}
         symbol={selectedToken.baseAssetSymbol}
         hedgeSize={(tokenAmount * hedgeRatio) / 100}
         tokenPrice={tokenPrice}
         tradeFee={calculateTakerFee(tokenPrice, ((tokenAmount * hedgeRatio) / 100), fees )}
         show={showHedgeModal}
-        submit={() => openHedgeMutation.mutate(
+        submit={
+          demoFlow ?
+          () => setDemoOrders(createDemoOrder(demoOrders, selectedToken.marketIndex, new anchor.BN(tokenAmount).mul(BASE_PRECISION).mul(new anchor.BN(hedgeRatio)).div(new anchor.BN(100)))) 
+          :
+          () => loopnHedgeMutation.mutate(
               { 
+                usdcDeposit: tokenPrice * ((tokenAmount * hedgeRatio) / 100),
                 baseAssetAmount: new anchor.BN(tokenAmount).mul(BASE_PRECISION).mul(new anchor.BN(hedgeRatio)).div(new anchor.BN(100)),
-                marketIndex: selectedToken.marketIndex
+                marketIndex: selectedToken.marketIndex,
+                simulate: true
               }
-            )}
-      /> */}
+            )
+          }
+      />}
       <h2 className="text-xl font-bold">Hedge Simulation</h2>
-      {(tokenQuery.isError || solQuery.isError) && (
+      {/* {(tokenQuery.isError || solQuery.isError) && (
         <pre className="alert alert-error">
           Error: {(tokenQuery.error?.message || solQuery.error?.message).toString()}
         </pre>
-      )}
+      )} */}
       {tokenQuery.isSuccess && solQuery.isSuccess && (
         <div className="space-y-4">
           <div className="flex flex-col md:flex-row space-x-4">
@@ -230,35 +317,26 @@ export function AccountHedgeSimulation({ address }: { address: PublicKey }) {
               <Line data={chartData} options={chartOptions} />
             )}
           </div>
-          {
-           userAccount === undefined ? 
-           <button
-              // disabled={wallet.publicKey?.toString() !== address.toString() }
-              className="btn w-full btn-outline"
-              onClick={() => initializeUserAccountMutation.mutateAsync()}
-            >
-              Create Account
-            </button>
-            :
-           <button className="btn btn-primary w-full" 
+           <button className="btn btn-primary w-full text-white" 
               onClick={() => setShowHedgeModal(true)}
             >
-                Open Hedge
+                Simulate Hedge
             </button>
-          }
         </div>
       )}
       <div className="flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-4">
       <div className="w-full">
         {/* {userAccount && <AccountMetrics userAccount={userAccount} refetchUserAccount={refetchUserAccount} />} */}
-        {userAccount && perpMarkets && <AccountPositions userAccount={userAccount} perpMarkets={perpMarkets} />}
+        {(userAccount || demoFlow) && perpMarkets && <AccountPositions userAccount={userAccount} perpMarkets={perpMarkets} demoOrders={demoOrders} demoPositions={demoPositions} setDemoOrders={setDemoOrders} setDemoPositions={setDemoPositions} handleCancel={(orderId: any) => cancelOrderMutation.mutate({orderId, simulate:true})}  handleCloseHedge={(pos) => closeHedgeMutation.mutate({ pos, simulate:true })} />}
       </div>
     </div>
     </div>
   );
 }
+// todo: must mock user account
 
-
+// todo: add price slippage and liquidation Price
+// todo: create account fee
 function ModalHedge({
   hide,
   show,
@@ -276,10 +354,6 @@ function ModalHedge({
   tradeFee?: string | number;
   submit: () => void;
 }) {
-  // const userTokenAmount = "100"
-  // const priceSlippage = ".2%"
-  // const liquidationPrice = "100" 
-
   return (
     <AppModal
       hide={hide}
@@ -315,50 +389,29 @@ function ModalHedge({
   );
 }
 
-
-
-
-
-export function AccountMetrics({ userAccount, refetchUserAccount }: { userAccount: UserAccount, refetchUserAccount: ()=>void}) {
-  return (
-    <div className="space-y-2">
-      <div className="flex justify-between">
-          <h2 className="text-l font-bold">Drift Metrics</h2>
-          <div className="space-x-2">
-            <button className="btn btn-sm btn-outline" onClick={async () => {
-              console.log('Button clicked, refetching user account...');
-              // await refetchUserAccount();
-              console.log('Refetching completed');
-            }}>
-              <IconRefresh size={16} />
-            </button>
-          </div>
-        </div>
-          <div>
-          <div className="border-4 rounded-lg p-4 space-y-4 border-separate border-base-300">
-            <div className="flex justify-between items-center">
-              <span className="font-mono">Account Name:</span>
-              <span className="font-mono text-right">{decodeName(userAccount.name)}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="font-mono">Deposits:</span>
-              <span className="font-mono text-right">{formatTokenAmount(userAccount.totalDeposits.sub(userAccount.totalWithdraws), 6, 2, true)}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="font-mono">Health:</span>
-              <span className="font-mono text-right">100%</span>
-            </div>
-          </div>
-        </div>
-    </div>
-  );
-}
-
 // todo: funding + liq Price
 // todo: close position
-export function AccountPositions({ userAccount, perpMarkets }: { userAccount: UserAccount, perpMarkets: PerpMarketAccount[] }) {
-  const positions: PerpPosition[]=getActivePerpPositionsForUserAccount(userAccount)
-  const pendingOrders: Order[] = getOpenOrdersForUserAccount(userAccount)
+export function AccountPositions(
+  { userAccount, 
+    perpMarkets, 
+    handleCancel, 
+    handleCloseHedge,
+    demoOrders,
+    setDemoOrders,
+    demoPositions,
+    setDemoPositions
+  }: { 
+    userAccount?: UserAccount, 
+    perpMarkets: PerpMarketAccount[], 
+    handleCancel: ((orderId: number) => void), 
+    handleCloseHedge: (pos: PerpPosition, simulate: boolean) => void, 
+    demoOrders: Order[],
+    setDemoOrders: Dispatch<SetStateAction<Order[]>>,
+    demoPositions: PerpPosition[]
+    setDemoPositions: Dispatch<SetStateAction<PerpPosition[]>>,
+  }) {
+  const pendingOrders: Order[] = demoFlow ? demoOrders : getOpenOrdersForUserAccount(userAccount)
+  const positions: PerpPosition[] = demoFlow ? demoPositions : getActivePerpPositionsForUserAccount(userAccount)
   return (
     <div className="space-y-2 mt-8">
       <div className="flex justify-between">
@@ -386,13 +439,16 @@ export function AccountPositions({ userAccount, perpMarkets }: { userAccount: Us
                     <th className="text-right">Size</th>
                     <th className="text-right">Price</th>
                     <th className="text-right">Order Id</th>
+                    <th className="text-right">Close</th>
                   </tr>
                 </thead>
                 <tbody>
                   {pendingOrders?.map((order) => {  
                     const baseAssetSymbol = getMarketConfigByIndex(order.marketIndex)?.baseAssetSymbol;
                     const orderSize = formatTokenAmount(order.baseAssetAmount, 9);
-                    const orderPrice = formatTokenAmount(order.price, 6, 2, true);
+                    const market = perpMarkets.find((market) => market.marketIndex === order.marketIndex);
+                    if (!market) return;
+                    const orderPrice = formatTokenAmount(market?.amm?.lastOracleNormalisedPrice, 6, 2, true);
 
                     return (
                       <tr key={order.marketIndex}>
@@ -407,6 +463,9 @@ export function AccountPositions({ userAccount, perpMarkets }: { userAccount: Us
                         </td>
                         <td className="font-mono text-right">
                           <span className="font-bold text-lg">{order.orderId}</span>
+                        </td>
+                        <td className="text-right">
+                          <button className="btn btn-sm btn-outline" onClick={demoFlow ? () => setDemoOrders(handleDemoCancel(pendingOrders, order.orderId)) : () => handleCancel(order.orderId)}>Cancel</button>
                         </td>
                       </tr>
                     );
@@ -469,7 +528,7 @@ export function AccountPositions({ userAccount, perpMarkets }: { userAccount: Us
                           </div>
                         </td>
                         <td className="text-right">
-                          <button className="btn btn-sm btn-outline">Close</button>
+                          <button className="btn btn-sm btn-outline" onClick={demoFlow ? () => setDemoPositions(handleDemoClose(positions, pos.baseAssetAmount)) : () => handleCloseHedge(pos, true)}>Close</button>
                         </td>
                       </tr>
                     );
@@ -483,79 +542,37 @@ export function AccountPositions({ userAccount, perpMarkets }: { userAccount: Us
   );
 }
 
-export function AccountButtons({address}: {address: PublicKey}) {
-  const wallet = useWallet(); // why is this needed?
-  const { depositMutation, withdrawMutation, openHedgeMutation, closeHedgeMutation} = useDriftProgramAccount(address);
-
-  // const { cluster } = useCluster();
-  const [showAirdropModal, setShowAirdropModal] = useState(false);
-  const [showReceiveModal, setShowReceiveModal] = useState(false);
-  const [showSendModal, setShowSendModal] = useState(false);
-
+export function AccountMetrics({ userAccount, refetchUserAccount }: { userAccount: UserAccount, refetchUserAccount: ()=>void}) {
   return (
-    <div>
-      <ModalAirdrop
-        hide={() => setShowAirdropModal(false)}
-        address={address}
-        show={showAirdropModal}
-      />
-      <ModalReceive
-        address={address}
-        show={showReceiveModal}
-        hide={() => setShowReceiveModal(false)}
-      />
-      <ModalSend
-        address={address}
-        show={showSendModal}
-        hide={() => setShowSendModal(false)}
-      />
-      <div className="space-x-2">
-        {/* <button
-          disabled={cluster.network?.includes('mainnet')}
-          className="btn btn-xs lg:btn-md btn-outline"
-          onClick={() => setShowAirdropModal(true)}
-        >
-          Airdrop
-        </button> */}
-        <button
-          disabled={wallet.publicKey?.toString() !== address.toString() }
-          className="btn btn-xs lg:btn-md btn-outline"
-          onClick={() => depositMutation.mutateAsync()}
-        >
-          Deposit USDC
-        </button>
-
-        <button
-          disabled={wallet.publicKey?.toString() !== address.toString() }
-          className="btn btn-xs lg:btn-md btn-outline"
-          onClick={() => withdrawMutation.mutateAsync()}
-        >
-          Withdraw USDC
-        </button>
-
-        <button
-          disabled={wallet.publicKey?.toString() !== address.toString() }
-          className="btn btn-xs lg:btn-md btn-outline"
-          onClick={() => openHedgeMutation.mutateAsync()}
-        >
-          Open Hedge
-        </button>
-
-        <button
-          disabled={wallet.publicKey?.toString() !== address.toString() }
-          className="btn btn-xs lg:btn-md btn-outline"
-          onClick={() => closeHedgeMutation.mutateAsync()}
-        >
-          Close Hedge
-        </button>
-        {/* <button
-          className="btn btn-xs lg:btn-md btn-outline"
-          onClick={() => setShowReceiveModal(true)}
-        >
-          Receive
-        </button> */}
-        {/* <LoopnList/> */}
-      </div>
+    <div className="space-y-2">
+      <div className="flex justify-between">
+          <h2 className="text-l font-bold">Drift Metrics</h2>
+          <div className="space-x-2">
+            <button className="btn btn-sm btn-outline" onClick={async () => {
+              console.log('Button clicked, refetching user account...');
+              // await refetchUserAccount();
+              console.log('Refetching completed');
+            }}>
+              <IconRefresh size={16} />
+            </button>
+          </div>
+        </div>
+          <div>
+          <div className="border-4 rounded-lg p-4 space-y-4 border-separate border-base-300">
+            <div className="flex justify-between items-center">
+              <span className="font-mono">Account Name:</span>
+              <span className="font-mono text-right">{decodeName(userAccount.name)}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="font-mono">Deposits:</span>
+              <span className="font-mono text-right">{formatTokenAmount(userAccount.totalDeposits.sub(userAccount.totalWithdraws), 6, 2, true)}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="font-mono">Health:</span>
+              <span className="font-mono text-right">100%</span>
+            </div>
+          </div>
+        </div>
     </div>
   );
 }

@@ -7,12 +7,6 @@ import { useParams } from 'next/navigation';
 
 import { ExplorerLink } from '../cluster/cluster-ui';
 import { AppHero, ellipsify } from '../ui/ui-layout';
-import {
-  AccountBalance,
-  AccountButtons,
-  // AccountTokens,
-  AccountTransactions,
-} from './account-ui';
 
 export default function AccountDetailFeature() {
   const params = useParams();
@@ -33,7 +27,7 @@ export default function AccountDetailFeature() {
   return (
     <div>
       <AppHero
-        title={<AccountBalance address={address} />}
+        title={"hi"}
         subtitle={
           <div className="my-4">
             <ExplorerLink
@@ -43,14 +37,7 @@ export default function AccountDetailFeature() {
           </div>
         }
       >
-        <div className="my-4">
-          <AccountButtons address={address} />
-        </div>
       </AppHero>
-      <div className="space-y-8">
-        {/* <AccountTokens address={address} /> */}
-        <AccountTransactions address={address} />
-      </div>
     </div>
   );
 }
