@@ -155,7 +155,7 @@ export function AccountHedgeSimulation({ address }: { address: PublicKey }) {
             lastCumulativeFundingRate: new BN(0),
             marketIndex: order.marketIndex,
             quoteAssetAmount: order.quoteAssetAmount,
-            quoteEntryAmount: new BN(-826426711),
+            quoteEntryAmount: order.quoteAssetAmount,
             quoteBreakEvenAmount: order.quoteAssetAmount,
             openOrders: 0,
             openBids: new BN(0),
@@ -494,11 +494,13 @@ export function AccountPositions(
                   {positions?.map((pos) => {
                     const market = perpMarkets.find((market) => market.marketIndex === pos.marketIndex);
                     if (!market) return;
+                    console.log(pos.quoteAssetAmount.toString())
+                    console.log(pos.quoteEntryAmount.toString())
 
                     const baseAssetSymbol = getMarketConfigByIndex(pos.marketIndex)?.baseAssetSymbol;
                     const entryPrice = formatTokenAmount(calculateEntryPrice(pos), 6, 2, true);
                     const lastOraclePrice = formatTokenAmount(market?.amm?.lastOracleNormalisedPrice, 6, 2, true);
-                    const baseAssetValue = formatTokenAmount(calculateBaseAssetValueWithOracle(market, pos), 5, 2, true);
+                    const baseAssetValue = formatTokenAmount(calculateBaseAssetValueWithOracle(market, pos), 6, 2, true);
                     const [, pnl, percentageChange] = getPositionEstimatedExitPriceAndPnl(market, pos);
 
                     return (
