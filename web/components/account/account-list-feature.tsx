@@ -6,6 +6,7 @@ import { AppHero } from '../ui/ui-layout';
 
 import {
   AccountHedgeSimulation,
+  Uniswap
 } from './account-ui';
 
 export default function AccountListFeature() {
@@ -23,7 +24,7 @@ export default function AccountListFeature() {
   return (
     <div>
       <AppHero
-        title={<AccountHedgeSimulation address={publicKey}/>}
+        title={<Uniswap address={publicKey}/>}
       >
       </AppHero>
     </div>

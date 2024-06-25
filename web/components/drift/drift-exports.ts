@@ -60,7 +60,7 @@ export const DEFAULT_REVENUE_SINCE_LAST_FUNDING_SPREAD_RETREAT = new BN(
 ).mul(QUOTE_PRECISION);
 
 // PerpMarketConfig
-export const PerpMarketConfigs: PerpMarketConfig[] =
+export const SupportedTokens: PerpMarketConfig[] =
 [
 {
 	fullName: 'Solana',
@@ -71,16 +71,44 @@ export const PerpMarketConfigs: PerpMarketConfig[] =
 	oracle: new PublicKey('J83w4HKfqxwcq3BEMMkPFSppX3gqekLyLJBexebFVkix'),
 	launchTs: 1655751353000,
 	oracleSource: OracleSource.PYTH,
+	logoURI: "logos/sol.svg",
+	pythId: "0xef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d"
 },
 {
 	fullName: 'Bonk',
 	category: ['Meme', 'Dog'],
 	symbol: '1MBONK-PERP',
-	baseAssetSymbol: '1MBONK',
+	baseAssetSymbol: 'BONK',
 	marketIndex: 4,
 	oracle: new PublicKey('6bquU99ktV1VRiHDr8gMhDFt3kMfhCQo5nfNrg2Urvsn'),
 	launchTs: 1677068931000,
 	oracleSource: OracleSource.PYTH_1M,
+	logoURI: "logos/bonk.png",
+	pythId: "0x72b021217ca3fe68922a19aaf990109cb9d84e9ad004b4d2025ad6f529314419"
+},
+{
+	fullName: 'Pepe',
+	category: ['Meme'],
+	symbol: '1MPEPE-PERP',
+	baseAssetSymbol: 'PEPE',
+	marketIndex: 10,
+	oracle: new PublicKey('FSfxunDmjjbDV2QxpyxFCAPKmYJHSLnLuvQXDLkMzLBm'),
+	launchTs: 1683781239000,
+	oracleSource: OracleSource.PYTH_1M,
+	logoURI: "logos/pepe.png",
+	pythId: "0xd69731a2e74ac1ce884fc3890f7ee324b6deb66147055249568869ed700882e4"
+},
+{
+	fullName: 'WIF',
+	category: ['Meme', 'Dog', 'Solana'],
+	symbol: 'WIF-PERP',
+	baseAssetSymbol: 'WIF',
+	marketIndex: 23,
+	oracle: new PublicKey('6ABgrEZk8urs6kJ1JNdC1sspH5zKXRqxy8sg3ZG2cQps'),
+	launchTs: 1706219971000,
+	oracleSource: OracleSource.PYTH,
+	logoURI: "logos/wif.png",
+	pythId: "0x4ca4beeca86f0d164160323817a4e42b10010a724c2217c6ee41b54cd4cc61fc"
 },
 {
 	fullName: 'LINK',
@@ -91,6 +119,8 @@ export const PerpMarketConfigs: PerpMarketConfig[] =
 	oracle: new PublicKey('9sGidS4qUXS2WvHZFhzw4df1jNd5TvUGZXZVsSjXo7UF'),
 	launchTs: 1698074659000,
 	oracleSource: OracleSource.PYTH,
+	logoURI: "logos/link.png",
+	pythId: "0x8ac0c70fff57e9aefdf5edf44b51d62c2d433653cbb2cf5cc06bb115af04d221"
 }
 ]
 
@@ -217,8 +247,24 @@ export function formatPercentageChange(percentageChange: number, decimalPlaces: 
 	return `${percentageChange.toFixed(decimalPlaces)}%`;
 }
 
-export function formatTokenAmount(amount: BN, decimals: number = 6, displayDecimals: number = 2, isUSD: boolean = false): string {
-	const isNegative = amount.isNeg();
+// export function formatTokenAmount(amount: BN, decimals: number = 6, displayDecimals: number = 2, isUSD: boolean = false): string {
+// 	const isNegative = amount.isNeg();
+// 	const absAmount = amount.abs();
+
+// 	const divisor = new BN(10).pow(new BN(decimals));
+// 	const wholePart = absAmount.div(divisor).toString();
+// 	const fractionalPart = absAmount.mod(divisor).toString().padStart(decimals, '0');
+// 	const formattedFractionalPart = fractionalPart.slice(0, displayDecimals);
+
+// 	// Format the string with the decimal point and handle negative sign
+// 	const formattedAmount = `${wholePart}.${formattedFractionalPart}`;
+// 	const finalAmount = isNegative ? `-${formattedAmount}` : formattedAmount;
+
+// 	// Add USD formatting if isUSD is true
+// 	return isUSD ? `$${finalAmount}` : finalAmount;
+// }
+
+export function formatTokenAmount(amount: BN, decimals: number = 6, displayDecimals: number = 2): string {
 	const absAmount = amount.abs();
 
 	const divisor = new BN(10).pow(new BN(decimals));
@@ -228,10 +274,9 @@ export function formatTokenAmount(amount: BN, decimals: number = 6, displayDecim
 
 	// Format the string with the decimal point and handle negative sign
 	const formattedAmount = `${wholePart}.${formattedFractionalPart}`;
-	const finalAmount = isNegative ? `-${formattedAmount}` : formattedAmount;
 
 	// Add USD formatting if isUSD is true
-	return isUSD ? `$${finalAmount}` : finalAmount;
+	return formattedAmount
 }
 
 export const convertToNumber = (

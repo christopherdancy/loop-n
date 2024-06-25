@@ -15,6 +15,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { useTransactionToast } from '../ui/ui-layout';
 import { TokenListProvider, TokenInfo } from '@solana/spl-token-registry';
+import { useEffect, useMemo } from "react";
+import { PriceFeed, PriceServiceConnection } from '@pythnetwork/price-service-client';
+import { SupportedTokens } from '../drift/drift-exports';
+// import { PythConnection } from "@pythnetwork/client";
 
 
 export function useGetBalance({ address }: { address: PublicKey }) {
@@ -33,6 +37,55 @@ export function useGetSignatures({ address }: { address: PublicKey }) {
     queryKey: ['get-signatures', { endpoint: connection.rpcEndpoint, address }],
     queryFn: () => connection.getConfirmedSignaturesForAddress2(address),
   });
+}
+
+export function useGetPythPrices() {
+  const queryClient = useQueryClient();
+  const pythConnection = useMemo(() => new PriceServiceConnection("https://hermes.pyth.network"), []);
+  const PYTH_PRICES_QUERY_KEY = 'pyth-prices';
+  const priceIds = SupportedTokens.map((token) => token.pythId)
+
+
+  // React Query to fetch the initial prices
+  const { data } = useQuery({
+    queryKey: [PYTH_PRICES_QUERY_KEY] as const,
+    queryFn: async () => {
+      const priceFeeds: PriceFeed[] | undefined = await pythConnection.getLatestPriceFeeds(priceIds);
+      if (!priceFeeds) return;
+      return priceFeeds.reduce<Record<string, {conf: string, expo: number, price: string, publishTime: number} | undefined>>((acc, feed) => {
+        acc[feed.id.toString()] = feed.getPriceNoOlderThan(60);
+        return acc;
+      }, {});
+    },
+    refetchInterval: 60000, // Refetch prices every minute
+  });
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const setupSubscription = async () => {
+      const handleUpdate = (priceFeed: PriceFeed) => {
+        if (!isMounted) return;
+        const updatedPrice = priceFeed.getPriceNoOlderThan(60);
+        queryClient.setQueryData<Record<string, {conf: string, expo: number, price: string, publishTime: number} | undefined>>([PYTH_PRICES_QUERY_KEY], (oldData) => ({
+          ...oldData,
+          [priceFeed.id.toString()]: updatedPrice,
+        }));
+      };
+
+      await pythConnection.subscribePriceFeedUpdates(priceIds, handleUpdate);
+    };
+
+    setupSubscription();
+
+    // Clean up the subscription when the component unmounts
+    return () => {
+      isMounted = false;
+      pythConnection.closeWebSocket(); // Close the WebSocket connection
+    };
+  }, [pythConnection, queryClient]);
+
+  return { data };
 }
 
 export function useGetTokenAccounts({ address }: { address: PublicKey }) {

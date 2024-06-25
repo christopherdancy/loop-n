@@ -339,6 +339,8 @@ export type PerpPosition = {
     launchTs: number;
     oracle: PublicKey;
     oracleSource: OracleSource;
+    logoURI: string;
+    pythId: string;
   };
 
 export type FeeStructure = {

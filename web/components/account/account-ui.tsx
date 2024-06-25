@@ -8,12 +8,13 @@ import { useMemo, useState } from 'react';
 import { AppModal } from '../ui/ui-layout';
 import {
   useGetBalance,
+  useGetPythPrices,
   useGetTokenAccounts,
 } from './account-data-access';
 import { useDriftProgramAccount } from '../drift/drift-data-access';
 import { 
   BASE_PRECISION,
-  PerpMarketConfigs, 
+  SupportedTokens, 
   calculateBaseAssetValueWithOracle, 
   calculateEntryPrice, 
   calculateTakerFee, 
@@ -28,7 +29,7 @@ import {
 import { BN } from '@coral-xyz/anchor';
 import { Line } from 'react-chartjs-2';
 import * as anchor from '@coral-xyz/anchor';
-import { UserAccount, PerpMarketAccount, PerpPosition, Order, PositionDirection, OrderTriggerCondition, OrderStatus, OrderType, MarketType } from '../drift/types';
+import { UserAccount, PerpMarketAccount, PerpPosition, Order, PositionDirection, OrderTriggerCondition, OrderStatus, OrderType, MarketType, PerpMarketConfig } from '../drift/types';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend } from 'chart.js';
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
 
@@ -77,6 +78,164 @@ function handleDemoCancel(prevOrders: Order[], orderId: number): Order[] {
 function handleDemoClose(prevPositions: PerpPosition[], baseAssetAmount: BN): PerpPosition[] {
   return prevPositions.filter(pos => pos.baseAssetAmount !== baseAssetAmount);
 }
+const TokenSelector = ({ selectedToken, onTokenChange }: { selectedToken: PerpMarketConfig, onTokenChange: (e: {target: {value: any;};}) => void }) => {
+  return (
+    <div className="flex items-center justify-between">
+      <div className="flex items-center p-2 rounded-3xl bg-white border border-gray-200">
+        <img src={selectedToken.logoURI} alt={selectedToken.fullName} className="w-6 h-6" />
+      <select
+        className="font-sans text-l w-full h-full focus:outline-none focus:ring-0"
+        value={selectedToken.baseAssetSymbol}
+        onChange={onTokenChange}
+        >
+        {SupportedTokens.map((token) => (
+          <option key={token.fullName} value={token.baseAssetSymbol}>
+            {token.baseAssetSymbol}
+          </option>
+        ))}
+      </select>
+      </div>
+    </div>
+  );
+};
+
+export function Uniswap({ address }: { address: PublicKey }) {
+  const [selectedToken, setSelectedToken] = useState(SupportedTokens[2]);
+  const [walletBalance, setWalletBalance] = useState('')
+  const [tokenAmount, setTokenAmount] = useState('');
+  const tokenQuery = useGetTokenAccounts({ address });
+  const solQuery = useGetBalance({ address });
+  const prices = useGetPythPrices();
+
+  const tokenItems = useMemo(() => {
+    const items = tokenQuery.data ? [...tokenQuery.data] : [];
+      if (solQuery.data) {
+        items.unshift({
+          account: {
+            data: {
+              parsed: {
+                info: {
+                  mint: 'SOL',
+                  tokenAmount: {
+                    amount: solQuery.data,
+                  },
+                },
+              },
+              program: '',
+              space: 0
+            },
+            executable: false,
+            owner: address,
+            lamports: 0
+          },
+          pubkey: address,
+          tokenInfo: {
+            name: 'Solana',
+            symbol: 'SOL',
+            logoURI: 'path-to-sol-logo',
+          },
+        });
+      }
+      return  items;
+    }, [tokenQuery.data, solQuery.data, address]);
+  
+  useEffect(() => {  
+    if(tokenItems) {
+      const token = tokenItems.find((token) => token.tokenInfo.symbol === selectedToken.baseAssetSymbol )
+      if (token) {
+        setWalletBalance((formatTokenAmount(new BN(token.account.data.parsed.info.tokenAmount.amount), 9)))
+      }
+      else{
+        setWalletBalance("0.00")
+      }
+    }
+      
+  }, [selectedToken, tokenItems]);
+
+  const handleTokenAmountChange = (e: { target: { value: any; }; }) => {
+    const value = e.target.value;
+    // Ensure only numbers and a single decimal point are allowed
+    if (value === '' || /^\d*\.?\d*$/.test(value)) {
+      setTokenAmount(value);
+    }
+  };
+
+  const handleTokenChange = (e: { target: { value: any; }; }) => {
+    const token = SupportedTokens.find((supportedToken) => e.target.value === supportedToken.baseAssetSymbol)
+    if (token) {
+      setSelectedToken(token) 
+      setTokenAmount('')
+    };
+  };
+
+  // Calculate the estimated worth using useMemo
+  const estimatedWorth = useMemo(() => {
+    if (!prices.data || !tokenAmount) return 0;
+    const priceData = prices.data[selectedToken.pythId.slice(2)]; // Remove '0x' prefix
+    if (!priceData) return 0;
+    const price = parseFloat(priceData.price) * 10 ** priceData.expo;
+    return parseFloat(tokenAmount) * price;
+  }, [prices.data, tokenAmount, selectedToken]);
+
+  return (
+    <div className="max-w-md mx-auto bg-white p-8 rounded-3xl shadow-md">
+      <div className='text-left py-4 text-xl text-bold font-mono'>
+      <span>Portfolio Coverage</span>
+      </div>
+      <div className="bg-gray-50 rounded-2xl p-4 mb-4">
+        <div className="flex justify-between items-left mb-2 font-mono">
+          <span>HODL Position</span>
+          <div className='text-sm'>
+          <span>{walletBalance} </span>
+          <button className='text-blue-500 disabled:text-slate-500' disabled={walletBalance==="0.00"} onClick={()=>setTokenAmount(walletBalance)}>MAX</button>
+          </div>
+        </div>
+        <div className="py-2 grid grid-cols-3 gap-4 items-center">
+          <input
+            type="text"
+            value={tokenAmount}
+            onChange={handleTokenAmountChange}
+            className="pl-1 rounded-3xl w-full text-3xl col-span-2 font-mono bg-gray-50 focus:outline-none focus:ring-0"
+            placeholder="0"
+          />
+          <TokenSelector selectedToken={selectedToken} onTokenChange={handleTokenChange} />
+        </div>
+        <div className='text-left font-mono'>
+        <span>${estimatedWorth.toFixed(2)}</span>
+        </div>
+      </div>
+      <div className="bg-gray-50 p-4 rounded-2xl mb-4">
+        <div className="flex justify-between items-left mb-2">
+          <span>Cover Loses Below</span>
+          {/* <span>$5,000.29</span> */}
+        </div>
+        <div className="py-2 grid grid-cols-3 gap-4 items-center">
+        <input
+            type="number"
+            value={0}
+            onChange={handleTokenAmountChange}
+            className="rounded-3xl w-full text-3xl col-span-2 bg-gray-50"
+            placeholder="$0"
+          />
+        </div>
+        <div className='text-left'>
+          <span>25% Coverage</span>
+        </div>
+      </div>
+      <div className="bg-gray-50 p-4 rounded-2xl">
+        <div className="flex justify-between items-left">
+          <span>Coverage Fees</span>
+          <span>$350.29</span>
+        </div>
+        <div className="flex justify-between items-left text-sm text-gray-400">
+          <span>Trade Details</span>
+          <span>strike price ~ $3,200 V</span>
+        </div>
+      </div>
+
+    </div>
+  );
+};
 
 export function AccountHedgeSimulation({ address }: { address: PublicKey }) {
   const { perpMarkets, fees, userAccount, loopnHedgeMutation, closeHedgeMutation, cancelOrderMutation } = useDriftProgramAccount(address);

@@ -9,6 +9,7 @@
   "private": true,
   "dependencies": {
     "@coral-xyz/anchor": "^0.29.0",
+    "@pythnetwork/price-service-client": "^1.9.0",
     "@solana-developers/preset-next": "2.2.0",
     "@solana/spl-token": "0.4.1",
     "@solana/spl-token-registry": "^0.2.4574",
