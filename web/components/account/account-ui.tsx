@@ -103,6 +103,7 @@ export function Uniswap({ address }: { address: PublicKey }) {
   const [selectedToken, setSelectedToken] = useState(SupportedTokens[2]);
   const [walletBalance, setWalletBalance] = useState('')
   const [tokenAmount, setTokenAmount] = useState('');
+  const [minPortfolioValue, setMinPortfolioValue] = useState('');
   const tokenQuery = useGetTokenAccounts({ address });
   const solQuery = useGetBalance({ address });
   const prices = useGetPythPrices();
@@ -151,6 +152,15 @@ export function Uniswap({ address }: { address: PublicKey }) {
     }
       
   }, [selectedToken, tokenItems]);
+  
+  const handleTokenChange = (e: { target: { value: any; }; }) => {
+    const token = SupportedTokens.find((supportedToken) => e.target.value === supportedToken.baseAssetSymbol)
+    if (token) {
+      setSelectedToken(token) 
+      setTokenAmount('')
+      setMinPortfolioValue('')
+    };
+  };
 
   const handleTokenAmountChange = (e: { target: { value: any; }; }) => {
     const value = e.target.value;
@@ -160,12 +170,15 @@ export function Uniswap({ address }: { address: PublicKey }) {
     }
   };
 
-  const handleTokenChange = (e: { target: { value: any; }; }) => {
-    const token = SupportedTokens.find((supportedToken) => e.target.value === supportedToken.baseAssetSymbol)
-    if (token) {
-      setSelectedToken(token) 
-      setTokenAmount('')
-    };
+  const handleMinPortfolioValue = (e: { target: { value: any } }) => {
+    const value = e.target.value.replace(/[^0-9.]/g, ''); // Remove all non-numeric characters except for the decimal point
+    if (parseFloat(value) > estimatedWorth){
+      return
+    } else if (value === '') {
+      setMinPortfolioValue('')
+    } else {
+      setMinPortfolioValue(`$${value}`)
+    }
   };
 
   // Calculate the estimated worth using useMemo
@@ -177,13 +190,22 @@ export function Uniswap({ address }: { address: PublicKey }) {
     return parseFloat(tokenAmount) * price;
   }, [prices.data, tokenAmount, selectedToken]);
 
+  const calculateCoverage = (minPortfolioValue: string, estimatedWorth: number): string => {
+    const minValue = parseFloat(minPortfolioValue.slice(1)); // Remove '$' and parse to float
+    if (isNaN(minValue) || minValue > estimatedWorth) {
+      return "0";
+    }
+    const coverage = (minValue / estimatedWorth) * 100;
+    return `${coverage.toFixed()}`;
+  }
+
   return (
     <div className="max-w-md mx-auto bg-white p-8 rounded-3xl shadow-md">
       <div className='text-left py-4 text-xl text-bold font-mono'>
       <span>Portfolio Coverage</span>
       </div>
-      <div className="bg-gray-50 rounded-2xl p-4 mb-4">
-        <div className="flex justify-between items-left mb-2 font-mono">
+      <div className="bg-gray-50 rounded-2xl p-4 mb-4 font-mono">
+        <div className="flex justify-between items-left mb-2 pl-1">
           <span>HODL Position</span>
           <div className='text-sm'>
           <span>{walletBalance} </span>
@@ -195,31 +217,30 @@ export function Uniswap({ address }: { address: PublicKey }) {
             type="text"
             value={tokenAmount}
             onChange={handleTokenAmountChange}
-            className="pl-1 rounded-3xl w-full text-3xl col-span-2 font-mono bg-gray-50 focus:outline-none focus:ring-0"
+            className="pl-1 rounded-3xl w-full text-3xl col-span-2 bg-gray-50 focus:outline-none focus:ring-0"
             placeholder="0"
           />
           <TokenSelector selectedToken={selectedToken} onTokenChange={handleTokenChange} />
         </div>
-        <div className='text-left font-mono'>
+        <div className='text-left pl-1'>
         <span>${estimatedWorth.toFixed(2)}</span>
         </div>
       </div>
-      <div className="bg-gray-50 p-4 rounded-2xl mb-4">
-        <div className="flex justify-between items-left mb-2">
-          <span>Cover Loses Below</span>
-          {/* <span>$5,000.29</span> */}
+      <div className="bg-gray-50 p-4 rounded-2xl mb-4 font-mono">
+        <div className="flex justify-between items-left mb-2 pl-1">
+          <span>Min. HODL Value</span>
         </div>
         <div className="py-2 grid grid-cols-3 gap-4 items-center">
         <input
-            type="number"
-            value={0}
-            onChange={handleTokenAmountChange}
-            className="rounded-3xl w-full text-3xl col-span-2 bg-gray-50"
+            type="text"
+            value={minPortfolioValue}
+            onChange={handleMinPortfolioValue}
+            className="pl-1 rounded-3xl w-full text-3xl col-span-2 bg-gray-50 focus:outline-none focus:ring-0"
             placeholder="$0"
           />
         </div>
-        <div className='text-left'>
-          <span>25% Coverage</span>
+        <div className='text-left pl-1'>
+          <span>{calculateCoverage(minPortfolioValue, estimatedWorth)}<text className='text-sm text-gray-500'>% of current value</text></span>
         </div>
       </div>
       <div className="bg-gray-50 p-4 rounded-2xl">
