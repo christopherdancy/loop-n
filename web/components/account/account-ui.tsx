@@ -164,7 +164,7 @@ export function Uniswap({ address }: { address: PublicKey }) {
 
   const handleTokenAmountChange = (e: { target: { value: any; }; }) => {
     const value = e.target.value;
-    // Ensure only numbers and a single decimal point are allowed
+    // Ensure only numbers and a single decimal point are allowed)
     if (value === '' || /^\d*\.?\d*$/.test(value)) {
       setTokenAmount(value);
     }
@@ -198,6 +198,15 @@ export function Uniswap({ address }: { address: PublicKey }) {
     const coverage = (minValue / estimatedWorth) * 100;
     return `${coverage.toFixed()}`;
   }
+
+  // Adjust minPortfolioValue if it exceeds estimatedWorth
+  useEffect(() => {
+    const minValue = parseFloat(minPortfolioValue.slice(1));
+    if (minValue > estimatedWorth) {
+      setMinPortfolioValue('');
+    }
+  }, [estimatedWorth, minPortfolioValue]);
+  
 
   return (
     <div className="max-w-md mx-auto bg-white p-8 rounded-3xl shadow-md">
