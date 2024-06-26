@@ -5,8 +5,7 @@ import { WalletButton } from '../solana/solana-provider';
 import { AppHero } from '../ui/ui-layout';
 
 import {
-  AccountHedgeSimulation,
-  Uniswap
+  PortfolioHedge
 } from './account-ui';
 
 export default function AccountListFeature() {
@@ -24,7 +23,7 @@ export default function AccountListFeature() {
   return (
     <div>
       <AppHero
-        title={<Uniswap address={publicKey}/>}
+        title={<PortfolioHedge address={publicKey}/>}
       >
       </AppHero>
     </div>

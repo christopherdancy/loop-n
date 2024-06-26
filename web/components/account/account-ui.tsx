@@ -99,14 +99,19 @@ const TokenSelector = ({ selectedToken, onTokenChange }: { selectedToken: PerpMa
   );
 };
 
-export function Uniswap({ address }: { address: PublicKey }) {
-  const [selectedToken, setSelectedToken] = useState(SupportedTokens[2]);
+export function PortfolioHedge({ address }: { address: PublicKey }) {
+  const [selectedToken, setSelectedToken] = useState(SupportedTokens[0]);
   const [walletBalance, setWalletBalance] = useState('')
   const [tokenAmount, setTokenAmount] = useState('');
+  const [isExpanded, setIsExpanded] = useState(false);
   const [minPortfolioValue, setMinPortfolioValue] = useState('');
   const tokenQuery = useGetTokenAccounts({ address });
   const solQuery = useGetBalance({ address });
   const prices = useGetPythPrices();
+
+  const toggleExpanded = () => {
+    setIsExpanded(!isExpanded);
+  };
 
   const tokenItems = useMemo(() => {
     const items = tokenQuery.data ? [...tokenQuery.data] : [];
@@ -252,17 +257,49 @@ export function Uniswap({ address }: { address: PublicKey }) {
           <span>{calculateCoverage(minPortfolioValue, estimatedWorth)}<text className='text-sm text-gray-500'>% of current value</text></span>
         </div>
       </div>
-      <div className="bg-gray-50 p-4 rounded-2xl">
-        <div className="flex justify-between items-left">
-          <span>Coverage Fees</span>
-          <span>$350.29</span>
-        </div>
-        <div className="flex justify-between items-left text-sm text-gray-400">
-          <span>Trade Details</span>
-          <span>strike price ~ $3,200 V</span>
-        </div>
+      <div className="bg-gray-50 p-4 rounded-2xl font-mono">
+      <div className="flex justify-between items-center mb-2 pl-1">
+        <span>Coverage Fees</span>
+        <span>$350.29</span>
       </div>
-
+      <div className="flex justify-between items-center text-gray-400 pl-1">
+        <button onClick={toggleExpanded} className="text-blue-500 text-sm text-center focus:outline-none">
+          {isExpanded ? 'Hide Details' : 'Details'}
+        </button>
+      </div>
+      {isExpanded && (
+        <div className="text-xs text-gray-500 mt-4 pl-1">
+          <div className="flex justify-between items-center mb-2">
+            <span>Protected asset</span>
+            <span>{selectedToken.baseAssetSymbol}</span>
+          </div>
+          <div className="flex justify-between items-center mb-2">
+            <span>HODL Value</span>
+            <span>{`$${estimatedWorth.toFixed(2)}`}</span>
+          </div>
+          <div className="flex justify-between items-center mb-2">
+            <span>Protected Value</span>
+          <span>{!minPortfolioValue ? '$0' : minPortfolioValue}</span>
+          </div>
+          <div className="flex justify-between items-center mb-2">
+            <span>Coverage strike price</span>
+            <span>$3,000 USD</span>
+          </div>
+          <div className="flex justify-between items-center mb-2">
+            <span>Collateral</span>
+            <span>$658.37 USDC</span>
+          </div>
+          <div className="flex justify-between items-center mb-2">
+            <span>Loopn fee</span>
+            <span>$3.07 USDC</span>
+          </div>
+          <div className="flex justify-between items-center mt-4 font-bold">
+            <span>Total Down Payment</span>
+            <span>$661.44 USDC</span>
+          </div>
+        </div>
+      )}
+    </div>
     </div>
   );
 };
