@@ -1,5 +1,5 @@
 // Here we export some useful types and functions for interacting with the Anchor program.
-import { Cluster, PublicKey } from '@solana/web3.js';
+import { Cluster, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import * as anchor from '@coral-xyz/anchor';
 import { BN, Program, ProgramAccount } from '@coral-xyz/anchor';
 import { 
@@ -41,6 +41,7 @@ export const PRICE_PRECISION = new BN(10).pow(PRICE_PRECISION_EXP);
 export const BID_ASK_SPREAD_PRECISION = new BN(1000000); // 10^6
 export const PERCENTAGE_PRECISION_EXP = new BN(6);
 export const PERCENTAGE_PRECISION = new BN(10).pow(PERCENTAGE_PRECISION_EXP);
+export const LAMPORTS_PRECISION = new BN(LAMPORTS_PER_SOL);
 
 // Constants for perp positions
 export const AMM_RESERVE_PRECISION_EXP = new BN(9);
@@ -108,6 +109,17 @@ export const SupportedTokens: PerpMarketConfig[] =
 	launchTs: 1706219971000,
 	oracleSource: OracleSource.PYTH,
 	logoURI: "logos/wif.png",
+	pythId: "0x4ca4beeca86f0d164160323817a4e42b10010a724c2217c6ee41b54cd4cc61fc"
+},
+{
+	fullName: 'Polygon',
+	category: ['L2', 'Infra'],
+	symbol: 'MATIC-PERP',
+	baseAssetSymbol: 'MATIC',
+	marketIndex: 5,
+	oracle: new PublicKey('FBirwuDFuRAu4iSGc7RGxN5koHB7EJM1wbCmyPuQoGur'),
+	launchTs: 1677690149000, //todo
+	oracleSource: OracleSource.PYTH,logoURI: "logos/wif.png",
 	pythId: "0x4ca4beeca86f0d164160323817a4e42b10010a724c2217c6ee41b54cd4cc61fc"
 },
 {
@@ -387,22 +399,24 @@ return takerFee.toLocaleString('en-US', { style: 'currency', currency: 'USD', mi
 
 // PERP / ORDER Utils
 export async function findAllMarkets(program: Program): Promise<{
-perpMarkets: PerpMarketAccount[];
-}> {
-const perpMarkets = [];
-
-const perpMarketProgramAccounts =
-	(await program.account.perpMarket.all()) as ProgramAccount<PerpMarketAccount>[];
-
-for (const perpMarketProgramAccount of perpMarketProgramAccounts) {
-	const perpMarket = perpMarketProgramAccount.account as PerpMarketAccount;
-	perpMarkets.push(perpMarket)
-}
-
-return {
-	perpMarkets,
-};
-}
+	perpMarkets: PerpMarketAccount[];
+  }> {
+	const perpMarkets: PerpMarketAccount[] = [];
+	
+	try {
+	  const perpMarketProgramAccounts = await program.account.perpMarket.all() as ProgramAccount<PerpMarketAccount>[];
+  
+	  for (const perpMarketProgramAccount of perpMarketProgramAccounts) {
+		const perpMarket = perpMarketProgramAccount.account as PerpMarketAccount;
+		perpMarkets.push(perpMarket);
+	  }
+  
+	  return { perpMarkets };
+	} catch (error) {
+	  console.error('Error fetching perpMarket accounts:', error);
+	  throw error; // rethrow the error after logging it
+	}
+  }
 
 export function getActivePerpPositionsForUserAccount(
 userAccount: UserAccount | undefined

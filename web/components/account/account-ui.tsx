@@ -29,8 +29,9 @@ import {
 import { BN } from '@coral-xyz/anchor';
 import { Line } from 'react-chartjs-2';
 import * as anchor from '@coral-xyz/anchor';
-import { UserAccount, PerpMarketAccount, PerpPosition, Order, PositionDirection, OrderTriggerCondition, OrderStatus, OrderType, MarketType, PerpMarketConfig } from '../drift/types';
+import { UserAccount, PerpMarketAccount, PerpPosition, Order, PositionDirection, OrderTriggerCondition, OrderStatus, OrderType, MarketType, PerpMarketConfig, FeeTier } from '../drift/types';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend } from 'chart.js';
+import { calculateCollateralRequirements, calculateLimitOrderPrice, calculateLiquidationPriceShort, calculateCoverage } from '../drift/math-hedge';
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
 
 const ZERO = new BN(0);
@@ -105,9 +106,12 @@ export function PortfolioHedge({ address }: { address: PublicKey }) {
   const [tokenAmount, setTokenAmount] = useState('');
   const [isExpanded, setIsExpanded] = useState(false);
   const [minPortfolioValue, setMinPortfolioValue] = useState('');
+  const [market, setMarket] = useState<PerpMarketAccount>();
+  const [userFees, setUserFees] = useState<{initUserFee: string, rentFee: number, rentExemptBalance: number,  tradeFees: FeeTier}>();
   const tokenQuery = useGetTokenAccounts({ address });
   const solQuery = useGetBalance({ address });
-  const prices = useGetPythPrices();
+  // const prices = useGetPythPrices();
+  const { perpMarkets, fees, userAccount } = useDriftProgramAccount(address);
 
   const toggleExpanded = () => {
     setIsExpanded(!isExpanded);
@@ -188,21 +192,16 @@ export function PortfolioHedge({ address }: { address: PublicKey }) {
 
   // Calculate the estimated worth using useMemo
   const estimatedWorth = useMemo(() => {
+    const prices = {data: 11.5} 
     if (!prices.data || !tokenAmount) return 0;
-    const priceData = prices.data[selectedToken.pythId.slice(2)]; // Remove '0x' prefix
-    if (!priceData) return 0;
-    const price = parseFloat(priceData.price) * 10 ** priceData.expo;
+    // const priceData = prices.data[selectedToken.pythId.slice(2)]; // Remove '0x' prefix
+    // if (!priceData) return 0;
+    // const price = parseFloat(priceData.price) * 10 ** priceData.expo;
+    const price= 11.20
     return parseFloat(tokenAmount) * price;
-  }, [prices.data, tokenAmount, selectedToken]);
+  }, [tokenAmount, selectedToken]);
+  // }, [prices.data, tokenAmount, selectedToken]);
 
-  const calculateCoverage = (minPortfolioValue: string, estimatedWorth: number): string => {
-    const minValue = parseFloat(minPortfolioValue.slice(1)); // Remove '$' and parse to float
-    if (isNaN(minValue) || minValue > estimatedWorth) {
-      return "0";
-    }
-    const coverage = (minValue / estimatedWorth) * 100;
-    return `${coverage.toFixed()}`;
-  }
 
   // Adjust minPortfolioValue if it exceeds estimatedWorth
   useEffect(() => {
@@ -211,8 +210,24 @@ export function PortfolioHedge({ address }: { address: PublicKey }) {
       setMinPortfolioValue('');
     }
   }, [estimatedWorth, minPortfolioValue]);
-  
 
+  useEffect(() => {
+    if (perpMarkets) {
+      const market = perpMarkets.find((market) => market.marketIndex === selectedToken.marketIndex);
+      if (market) {
+        setMarket(market)
+      }
+    }
+
+    if (fees) {
+      setUserFees(fees)
+    }
+  }, [selectedToken, perpMarkets, fees]);
+
+  // proper logic for account fees without market or inputs + reorg
+  // account fees for account creation is .02 but I am unsure where this is coming from
+  // update collateral information usdc + solona fee
+  // indicate what fee (denom) it is in
   return (
     <div className="max-w-md mx-auto bg-white p-8 rounded-3xl shadow-md">
       <div className='text-left py-4 text-xl text-bold font-mono'>
@@ -269,34 +284,67 @@ export function PortfolioHedge({ address }: { address: PublicKey }) {
       </div>
       {isExpanded && (
         <div className="text-xs text-gray-500 mt-4 pl-1">
-          <div className="flex justify-between items-center mb-2">
+          <div className="flex justify-between items-center mb-2 underline font-bold decoration-blue-500">
+            <span>HODL Info</span>
+          </div>
+          <div className="flex justify-between items-center mb-2 pl-1">
             <span>Protected asset</span>
             <span>{selectedToken.baseAssetSymbol}</span>
           </div>
-          <div className="flex justify-between items-center mb-2">
+          <div className="flex justify-between items-center mb-2 pl-1">
             <span>HODL Value</span>
             <span>{`$${estimatedWorth.toFixed(2)}`}</span>
           </div>
-          <div className="flex justify-between items-center mb-2">
+          <div className="flex justify-between items-center mb-2 pl-1">
             <span>Protected Value</span>
           <span>{!minPortfolioValue ? '$0' : minPortfolioValue}</span>
           </div>
-          <div className="flex justify-between items-center mb-2">
-            <span>Coverage strike price</span>
-            <span>$3,000 USD</span>
+          { market &&
+          <div>
+          <div className="flex justify-between items-center my-2 underline font-bold decoration-blue-500">
+            <span>Trade Info</span>
           </div>
-          <div className="flex justify-between items-center mb-2">
+          <div className="flex justify-between items-center mb-2 pl-1">
+            <span>Leverage</span>
+            <span>{`${calculateCollateralRequirements(market, minPortfolioValue).leverage}X`}</span>
+          </div>
+          <div className="flex justify-between items-center mb-2 pl-1">
+            <span>Coverage price</span>
+            <span>{`$${calculateLimitOrderPrice(minPortfolioValue, tokenAmount).toFixed(2)}`}</span>
+          </div>
+          <div className="flex justify-between items-center mb-2 pl-1">
+            <span>Stop Loss Price</span>
+            <span>{`$${calculateLiquidationPriceShort(tokenAmount, calculateLimitOrderPrice(minPortfolioValue, tokenAmount), calculateCollateralRequirements(market, minPortfolioValue)).stopLossPrice.toFixed(2)}`}</span>
+          </div>
+          <div className="flex justify-between items-center mb-2 pl-1">
+            <span>Liquidation Price</span>
+            <span>{`$${calculateLiquidationPriceShort(tokenAmount, calculateLimitOrderPrice(minPortfolioValue, tokenAmount), calculateCollateralRequirements(market, minPortfolioValue)).liqPrice.toFixed(2)}`}</span>
+          </div>
+          </div>
+          }
+          <div className="flex justify-between items-center my-2 underline font-bold decoration-blue-500">
+            <span>Fee Info</span>
+          </div>
+          <div className="flex justify-between items-center mb-2 pl-1">
             <span>Collateral</span>
-            <span>$658.37 USDC</span>
+            <span>{`$${calculateCollateralRequirements(market, minPortfolioValue).initialCollateral.toFixed(2)}`}</span>
           </div>
-          <div className="flex justify-between items-center mb-2">
-            <span>Loopn fee</span>
-            <span>$3.07 USDC</span>
+          <div className="flex justify-between items-center mb-2 pl-1">
+            <span>Tx fee</span>
+            <span>{calculateTakerFee(calculateLimitOrderPrice(minPortfolioValue, tokenAmount), new anchor.BN(tokenAmount).mul(BASE_PRECISION), fees?.tradeFees)}</span>
           </div>
-          <div className="flex justify-between items-center mt-4 font-bold">
-            <span>Total Down Payment</span>
-            <span>$661.44 USDC</span>
+          { userAccount &&
+          <div className="flex justify-between items-center mb-2 pl-1">
+            <span>Init Account Fee</span>
+            <span>{userFees.initUserFee}</span>
           </div>
+          }
+          { solQuery.data < userFees.rentExemptBalance &&
+          <div className="flex justify-between items-center mb-2 pl-1">
+            <span>Solana Rent Fee</span>
+            <span>{(formatTokenAmount(new BN(userFees?.rentFee), 9, 2))}</span>
+          </div>
+          }
         </div>
       )}
     </div>

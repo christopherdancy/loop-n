@@ -26,9 +26,9 @@ import { useAnchorProvider } from '../solana/solana-provider';
 import { useTransactionToast } from '../ui/ui-layout';
 import DriftIDL from './drift.json'
 import { FeeTier, MarketType, PerpMarketAccount, PerpPosition, PositionDirection, StateAccount, UserAccount } from './types';
+import { calculateInitUserFee, getRentExemptBalance, getRentCost } from './state';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-
 export function useDriftProgram() {
   const { connection } = useConnection();
   const { cluster } = useCluster();
@@ -71,11 +71,11 @@ export function useDriftProgramAccount(account: PublicKey) {
   const [signerPublicKey, setSignerPublicKey] = useState<PublicKey | undefined>(undefined);
   const [userAccount, setUserAccount] = useState<UserAccount | undefined>(undefined);
   const [perpMarkets, setPerpMarkets] = useState<PerpMarketAccount[] | undefined>(undefined);
-  const [fees, setFees] = useState<FeeTier | undefined>(undefined)
+  const [fees, setFees] = useState<{initUserFee: string, rentFee: number, rentExemptBalance: number,  tradeFees: FeeTier} | undefined>(undefined)
   const [, setIsLoadingPublicKeys] = useState(true);
   const [isLoadingPerpMarkets, setIsLoadingPerpMarkets] = useState(true);
   const [isLoadingUserAccount, setIsLoadingUserAccount] = useState(true);
-  const [, setError] = useState<Error | undefined>(undefined);
+  const [error2, setError] = useState<Error | undefined>(undefined);
   const userStatsPublicKey = getUserStatsAccountPublicKey(program.programId, account);
 
   const pub = { pubkey: new PublicKey("BwBL7eWa9XABw4QzwAnDxeVPcgHWhtbbaNUYLmiThVmj"), isWritable: true, isSigner: false };
@@ -88,8 +88,15 @@ export function useDriftProgramAccount(account: PublicKey) {
       const stateAccount = await getDriftStateAccountPublicKey(program.programId);
       const vault = await getSpotMarketVaultPublicKey(program.programId, 0);
       const signer = await getDriftSignerPublicKey(program.programId);
-      const stateAccountFetch = await program.account.state.fetch(stateAccount) as StateAccount
-      setFees(stateAccountFetch.perpFeeStructure.feeTiers[0])
+      const stateAccountFetch = await program.account.state.fetch(stateAccount) as StateAccount;
+      setFees(
+        {
+          initUserFee: calculateInitUserFee(stateAccountFetch), 
+          rentFee: await getRentCost(connection, program.account.user.size + program.account.userStats.size, 2), 
+          rentExemptBalance: await getRentExemptBalance(connection, program.account.user.size), 
+          tradeFees:stateAccountFetch.perpFeeStructure.feeTiers[0]
+        }
+      )
       setUserPublicKey(user);
       setStatePublicKey(stateAccount);
       setVaultPublicKey(vault);
@@ -137,6 +144,7 @@ export function useDriftProgramAccount(account: PublicKey) {
     fetchUserAccount();
     fetchPerpMarkets();
   }, [program.programId, account]);
+  
 
   const loopnHedgeMutation = useMutation({
     mutationKey: ['drift', 'initializeUserAndStats', { cluster, account }],
