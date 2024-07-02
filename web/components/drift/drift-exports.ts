@@ -430,33 +430,6 @@ return userAccount ? userAccount.perpPositions.filter(
 ) : [];
 }
 
-export function getMarketOrderParams(
-params: Omit<OptionalOrderParams, 'orderType'>
-): OptionalOrderParams {
-return Object.assign({}, params, {
-	orderType: OrderType.ORACLE,
-});
-}
-
-export function getOrderParams(
-optionalOrderParams: OptionalOrderParams,
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-overridingParams: Record<string, any> = {}
-): OrderParams {
-return Object.assign(
-	{},
-	DefaultOrderParams,
-	optionalOrderParams,
-	overridingParams
-);
-}
-
-export function getOpenOrdersForUserAccount(userAccount?: UserAccount): Order[] {
-return userAccount? userAccount.orders.filter((order) =>
-	order.status == 'open'
-) : [];
-}
-
 export function positionCurrentDirection(
 userPosition: PerpPosition
 ): PositionDirection {

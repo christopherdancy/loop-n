@@ -11,8 +11,7 @@ import {
   convertUSDCtoSmallestUnit,
   getDriftSignerPublicKey,
   findAllMarkets,
-  getMarketOrderParams,
-  getOrderParams,
+  PRICE_PRECISION,
 } from './drift-exports';
 import { Program } from '@coral-xyz/anchor';
 import * as anchor from '@coral-xyz/anchor';
@@ -25,8 +24,9 @@ import { useCluster } from '../cluster/cluster-data-access';
 import { useAnchorProvider } from '../solana/solana-provider';
 import { useTransactionToast } from '../ui/ui-layout';
 import DriftIDL from './drift.json'
-import { FeeTier, MarketType, PerpMarketAccount, PerpPosition, PositionDirection, StateAccount, UserAccount } from './types';
+import { FeeTier, MarketType, OrderTriggerCondition, PerpMarketAccount, PerpPosition, PositionDirection, PostOnlyParams, StateAccount, UserAccount } from './types';
 import { calculateInitUserFee, getRentExemptBalance, getRentCost } from './state';
+import { getLimitOrderParams, getOrderParams, getTriggerLimitOrderParams } from './order-utils';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export function useDriftProgram() {
@@ -78,7 +78,8 @@ export function useDriftProgramAccount(account: PublicKey) {
   const [error2, setError] = useState<Error | undefined>(undefined);
   const userStatsPublicKey = getUserStatsAccountPublicKey(program.programId, account);
 
-  const pub = { pubkey: new PublicKey("BwBL7eWa9XABw4QzwAnDxeVPcgHWhtbbaNUYLmiThVmj"), isWritable: true, isSigner: false };
+  // todo: this is the token account
+  const pub = { pubkey: new PublicKey("EW3XKFY7ftPJJeRQPzvmk17Lzi4Azyqt3BJBX4rSDB1A"), isWritable: true, isSigner: false };
 
   const fetchPublicKeys = async () => {
     setIsLoadingPublicKeys(true);
@@ -146,9 +147,10 @@ export function useDriftProgramAccount(account: PublicKey) {
   }, [program.programId, account]);
   
 
+  // change function to a limit order + stop loss
   const loopnHedgeMutation = useMutation({
     mutationKey: ['drift', 'initializeUserAndStats', { cluster, account }],
-    mutationFn: async ({ usdcDeposit, baseAssetAmount, marketIndex, simulate }:{ usdcDeposit: number, baseAssetAmount: number, marketIndex: number, simulate: boolean } ) => {
+    mutationFn: async ({ usdcDeposit, baseAssetAmount, marketIndex, price, stopLossPrice, simulate }:{ usdcDeposit: number, baseAssetAmount: number, marketIndex: number, price: number, stopLossPrice: number, simulate: boolean } ) => {
       if (!userPublicKey || !statePublicKey || !userStatsPublicKey) {
         throw new Error("Public keys are not ready.");
       }
@@ -156,8 +158,8 @@ export function useDriftProgramAccount(account: PublicKey) {
       const initializeUserStatsIx = await createInitializeUserStatsIx(program, statePublicKey, userStatsPublicKey, account);
       const initializeUserIx = await createInitializeUserIx(program, statePublicKey, userPublicKey, userStatsPublicKey, account);
       const depositIx = await createDepositIx(program, statePublicKey, vaultPublicKey, userPublicKey, userStatsPublicKey, pub, account, usdcDeposit);
-      const hedgeIx = await createHedgeIx(program, statePublicKey, vaultPublicKey, userPublicKey, userStatsPublicKey, account, baseAssetAmount, marketIndex, PositionDirection.SHORT);
-  
+      const hedgeIx = await createHedgeIx(program, statePublicKey, vaultPublicKey, userPublicKey, userStatsPublicKey, account, baseAssetAmount, marketIndex, price);
+      const stopLossIx = await createStopLossIx(program, statePublicKey, vaultPublicKey, userPublicKey, userStatsPublicKey, account, baseAssetAmount, marketIndex, price, stopLossPrice);
       let tx;
       if (!userAccount) {
         tx = new Transaction()
@@ -168,7 +170,8 @@ export function useDriftProgramAccount(account: PublicKey) {
       } else {
         tx = new Transaction()
           .add(depositIx)
-          .add(hedgeIx);
+          .add(hedgeIx)
+          .add(stopLossIx);
       }
 
       tx.feePayer = provider.wallet.publicKey;
@@ -186,6 +189,7 @@ export function useDriftProgramAccount(account: PublicKey) {
 
       return "simulate" 
     },
+
     onSuccess: (txSig) => {
       transactionToast(txSig);
       fetchUserAccount()
@@ -369,8 +373,80 @@ const createDepositIx = async (program: Program<any>, statePublicKey: anchor.web
       tokenProgram: TOKEN_PROGRAM_ID,
     })
     .remainingAccounts([
-      { pubkey: new PublicKey("5SSkXsEKQepHHAewytPVwdej4epN1nxgLVM84L4KXgy7"), isWritable: false, isSigner: false },
-      { pubkey: new PublicKey("6gMq3mRCKf8aP3ttTyYhuijVZ2LGi14oDsBbkgubfLB3"), isWritable: true, isSigner: false }
+      { pubkey: new PublicKey("Gnt27xtC473ZT2Mw5u8wZ68Z3gULkSTb5DuxJy7eJotD"), isWritable: false, isSigner: false },
+      { pubkey: new PublicKey("E4v1BBgoso9s64TQvmyownAVJbhbEPGyzA3qn4n46qj9"), isWritable: false, isSigner: false },
+      { pubkey: new PublicKey("H6ARHf6YXhGYeQfUzQNGk6rDNnLBQKrenN712K4AQJEG"), isWritable: false, isSigner: false },
+      { pubkey: new PublicKey("6gMq3mRCKf8aP3ttTyYhuijVZ2LGi14oDsBbkgubfLB3"), isWritable: true, isSigner: false },
+      { pubkey: new PublicKey("Mr2XZwj1NisUur3WZWdERdqnEUMoa9F9pUr52vqHyqj"), isWritable: false, isSigner: false },
+      { pubkey: new PublicKey("8UJgxaiQx5nTrdDgph5FiahMmzduuLTLf5WmsPegYA6W"), isWritable: false, isSigner: false },
+    ])
+    .instruction();
+};
+
+// better price percision + test actual fill rates - lots of configuration to be done
+const createHedgeIx = async (program: Program<any>, statePublicKey: anchor.web3.PublicKey, vaultPublicKey: anchor.web3.PublicKey | undefined, userPublicKey: anchor.web3.PublicKey, userStatsPublicKey: anchor.web3.PublicKey, account: anchor.web3.PublicKey, baseAssetAmount: number, marketIndex: number, price: number) => {
+  return await program.methods.placePerpOrder(
+    getOrderParams(
+      getTriggerLimitOrderParams({
+        marketIndex,
+        direction: PositionDirection.SHORT,
+        baseAssetAmount: baseAssetAmount,
+        price: new anchor.BN(price).mul(PRICE_PRECISION),
+        auctionStartPrice: new anchor.BN(price).mul(PRICE_PRECISION),
+        triggerCondition: OrderTriggerCondition.BELOW,
+        triggerPrice: new anchor.BN(price + 1).mul(PRICE_PRECISION)
+      }),
+      { MarketType: MarketType.PERP }
+    )
+  )
+    .accounts({
+      state: statePublicKey,
+      spotMarketVault: vaultPublicKey,
+      user: userPublicKey,
+      userStats: userStatsPublicKey,
+      authority: account,
+    })
+    .remainingAccounts([
+      { pubkey: new PublicKey("Gnt27xtC473ZT2Mw5u8wZ68Z3gULkSTb5DuxJy7eJotD"), isWritable: false, isSigner: false },
+      { pubkey: new PublicKey("E4v1BBgoso9s64TQvmyownAVJbhbEPGyzA3qn4n46qj9"), isWritable: false, isSigner: false },
+      { pubkey: new PublicKey("H6ARHf6YXhGYeQfUzQNGk6rDNnLBQKrenN712K4AQJEG"), isWritable: false, isSigner: false },
+      { pubkey: new PublicKey("6gMq3mRCKf8aP3ttTyYhuijVZ2LGi14oDsBbkgubfLB3"), isWritable: false, isSigner: false },
+      { pubkey: new PublicKey("Mr2XZwj1NisUur3WZWdERdqnEUMoa9F9pUr52vqHyqj"), isWritable: false, isSigner: false },
+      { pubkey: new PublicKey("8UJgxaiQx5nTrdDgph5FiahMmzduuLTLf5WmsPegYA6W"), isWritable: true, isSigner: false },
+    ])
+    .instruction();
+};
+
+const createStopLossIx = async (program: Program<any>, statePublicKey: anchor.web3.PublicKey, vaultPublicKey: anchor.web3.PublicKey | undefined, userPublicKey: anchor.web3.PublicKey, userStatsPublicKey: anchor.web3.PublicKey, account: anchor.web3.PublicKey, baseAssetAmount: number, marketIndex: number, price: number, stopLossPrice: number) => {
+  return await program.methods.placePerpOrder(
+    getOrderParams(
+      getTriggerLimitOrderParams({
+        marketIndex,
+        direction: PositionDirection.LONG,
+        baseAssetAmount: baseAssetAmount,
+        price: new anchor.BN(stopLossPrice).mul(PRICE_PRECISION),
+        auctionStartPrice: new anchor.BN(price).mul(PRICE_PRECISION),
+        triggerCondition: OrderTriggerCondition.ABOVE,
+        triggerPrice: new anchor.BN(price).mul(PRICE_PRECISION),
+        reduceOnly: true
+      }),
+      { MarketType: MarketType.PERP }
+    )
+  )
+    .accounts({
+      state: statePublicKey,
+      spotMarketVault: vaultPublicKey,
+      user: userPublicKey,
+      userStats: userStatsPublicKey,
+      authority: account,
+    })
+    .remainingAccounts([
+      { pubkey: new PublicKey("Gnt27xtC473ZT2Mw5u8wZ68Z3gULkSTb5DuxJy7eJotD"), isWritable: false, isSigner: false },
+      { pubkey: new PublicKey("E4v1BBgoso9s64TQvmyownAVJbhbEPGyzA3qn4n46qj9"), isWritable: false, isSigner: false },
+      { pubkey: new PublicKey("H6ARHf6YXhGYeQfUzQNGk6rDNnLBQKrenN712K4AQJEG"), isWritable: false, isSigner: false },
+      { pubkey: new PublicKey("6gMq3mRCKf8aP3ttTyYhuijVZ2LGi14oDsBbkgubfLB3"), isWritable: false, isSigner: false },
+      { pubkey: new PublicKey("Mr2XZwj1NisUur3WZWdERdqnEUMoa9F9pUr52vqHyqj"), isWritable: false, isSigner: false },
+      { pubkey: new PublicKey("8UJgxaiQx5nTrdDgph5FiahMmzduuLTLf5WmsPegYA6W"), isWritable: true, isSigner: false },
     ])
     .instruction();
 };
@@ -394,46 +470,6 @@ const createCancelOrderIx = async (program: Program<any>, statePublicKey: anchor
       { pubkey: new PublicKey("25Eax9W8SA3wpCQFhJEGyHhQ2NDHEshZEDzyMNtthR8D"), isWritable: false, isSigner: false },
       { pubkey: new PublicKey("3a7HAEqxzwvJEAViYKhDtHk85mrFf1dU2HCsffgXxUj8"), isWritable: false, isSigner: false },
       { pubkey: new PublicKey("8UJgxaiQx5nTrdDgph5FiahMmzduuLTLf5WmsPegYA6W"), isWritable: false, isSigner: false },
-    ])
-    .instruction();
-};
-
-const createHedgeIx = async (program: Program<any>, statePublicKey: anchor.web3.PublicKey, vaultPublicKey: anchor.web3.PublicKey | undefined, userPublicKey: anchor.web3.PublicKey, userStatsPublicKey: anchor.web3.PublicKey, account: anchor.web3.PublicKey, baseAssetAmount: number, marketIndex: number, direction: PositionDirection) => {
-  return await program.methods.placePerpOrder(
-    getOrderParams(
-      getMarketOrderParams({
-        baseAssetAmount: baseAssetAmount,
-        direction: direction,
-        marketIndex: marketIndex,
-      }),
-      { MarketType: MarketType.PERP }
-    )
-  )
-    .accounts({
-      state: statePublicKey,
-      spotMarketVault: vaultPublicKey,
-      user: userPublicKey,
-      userStats: userStatsPublicKey,
-      authority: account,
-    })
-    .remainingAccounts([
-      { pubkey: new PublicKey("5SSkXsEKQepHHAewytPVwdej4epN1nxgLVM84L4KXgy7"), isWritable: false, isSigner: false },
-      { pubkey: new PublicKey("J83w4HKfqxwcq3BEMMkPFSppX3gqekLyLJBexebFVkix"), isWritable: false, isSigner: false },
-      { pubkey: new PublicKey("HovQMDrbAgAYPCmHVSrezcSmkMtXSSUsLDFANExrZh2J"), isWritable: false, isSigner: false },
-      { pubkey: new PublicKey("BM2UWqREbt7ktsPCA438dqAVqhU7UZFVg11CQyPXFr49"), isWritable: false, isSigner: false },
-      { pubkey: new PublicKey("9sGidS4qUXS2WvHZFhzw4df1jNd5TvUGZXZVsSjXo7UF"), isWritable: false, isSigner: false },
-      { pubkey: new PublicKey("HNStfhaLnqwF2ZtJUizaA9uHDAVB976r2AgTUx9LrdEo"), isWritable: false, isSigner: false },
-      { pubkey: new PublicKey("4L6YhY8VvUgmqG5MvJkUJATtzB2rFqdrJwQCmFLv4Jzy"), isWritable: false, isSigner: false },
-      { pubkey: new PublicKey("6gMq3mRCKf8aP3ttTyYhuijVZ2LGi14oDsBbkgubfLB3"), isWritable: false, isSigner: false },
-      { pubkey: new PublicKey("3x85u7SWkmmr7YQGYhtjARgxwegTLJgkSLRprfXod6rh"), isWritable: false, isSigner: false },
-      { pubkey: new PublicKey("Mr2XZwj1NisUur3WZWdERdqnEUMoa9F9pUr52vqHyqj"), isWritable: false, isSigner: false },
-      { pubkey: new PublicKey("8BbCGbxsQk1HYohgdn1TMUNs6RYcX4Hae3k8mt4rvnzf"), isWritable: false, isSigner: false },
-      { pubkey: new PublicKey("3a7HAEqxzwvJEAViYKhDtHk85mrFf1dU2HCsffgXxUj8"), isWritable: false, isSigner: false },
-      { pubkey: new PublicKey("25Eax9W8SA3wpCQFhJEGyHhQ2NDHEshZEDzyMNtthR8D"), isWritable: false, isSigner: false },
-      { pubkey: new PublicKey("48R9ic9xgigVRqNPbABN8gTGoRV9wn6UUmcKYz3csbhR"), isWritable: false, isSigner: false },
-      { pubkey: new PublicKey("8UJgxaiQx5nTrdDgph5FiahMmzduuLTLf5WmsPegYA6W"), isWritable: true, isSigner: false },
-      { pubkey: new PublicKey("9vFnv3T4SdiKV4ecenKys4BZyYXE1CNSQH6rsVUngAgB"), isWritable: true, isSigner: false },
-      { pubkey: new PublicKey("6HBFJwNouN5sFDQRXbZ7iEyWK3jkpCu6PPJUENdPP4wL"), isWritable: true, isSigner: false },
     ])
     .instruction();
 };

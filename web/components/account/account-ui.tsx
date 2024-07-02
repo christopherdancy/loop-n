@@ -31,7 +31,7 @@ import { Line } from 'react-chartjs-2';
 import * as anchor from '@coral-xyz/anchor';
 import { UserAccount, PerpMarketAccount, PerpPosition, Order, PositionDirection, OrderTriggerCondition, OrderStatus, OrderType, MarketType, PerpMarketConfig, FeeTier } from '../drift/types';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend } from 'chart.js';
-import { calculateCollateralRequirements, calculateLimitOrderPrice, calculateLiquidationPriceShort, calculateCoverage } from '../drift/math-hedge';
+import { calculateCollateralRequirements, calculateLimitOrderPrice, calculateLiquidationPriceShort, calculateCoverage } from '../drift/hedge-utils';
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
 
 const ZERO = new BN(0);
@@ -111,7 +111,7 @@ export function PortfolioHedge({ address }: { address: PublicKey }) {
   const tokenQuery = useGetTokenAccounts({ address });
   const solQuery = useGetBalance({ address });
   // const prices = useGetPythPrices();
-  const { perpMarkets, fees, userAccount } = useDriftProgramAccount(address);
+  const { perpMarkets, fees, userAccount, loopnHedgeMutation } = useDriftProgramAccount(address);
 
   const toggleExpanded = () => {
     setIsExpanded(!isExpanded);
@@ -197,7 +197,7 @@ export function PortfolioHedge({ address }: { address: PublicKey }) {
     // const priceData = prices.data[selectedToken.pythId.slice(2)]; // Remove '0x' prefix
     // if (!priceData) return 0;
     // const price = parseFloat(priceData.price) * 10 ** priceData.expo;
-    const price= 11.20
+    const price= 146.26
     return parseFloat(tokenAmount) * price;
   }, [tokenAmount, selectedToken]);
   // }, [prices.data, tokenAmount, selectedToken]);
@@ -272,7 +272,7 @@ export function PortfolioHedge({ address }: { address: PublicKey }) {
           <span>{calculateCoverage(minPortfolioValue, estimatedWorth)}<text className='text-sm text-gray-500'>% of current value</text></span>
         </div>
       </div>
-      <div className="bg-gray-50 p-4 rounded-2xl font-mono">
+      <div className="bg-gray-50 p-4 rounded-2xl font-mono mb-4">
       <div className="flex justify-between items-center mb-2 pl-1">
         <span>Coverage Fees</span>
         <span>$350.29</span>
@@ -348,6 +348,20 @@ export function PortfolioHedge({ address }: { address: PublicKey }) {
         </div>
       )}
     </div>
+      <button className="btn btn-primary w-full text-white font-mono" 
+                onClick={() => loopnHedgeMutation.mutate(
+                  { 
+                    usdcDeposit: calculateCollateralRequirements(market, minPortfolioValue).initialCollateral,
+                    baseAssetAmount: new anchor.BN(tokenAmount).mul(BASE_PRECISION),
+                    marketIndex: selectedToken.marketIndex,
+                    price: calculateLimitOrderPrice(minPortfolioValue, tokenAmount),
+                    stopLossPrice: calculateLiquidationPriceShort(tokenAmount, calculateLimitOrderPrice(minPortfolioValue, tokenAmount), calculateCollateralRequirements(market, minPortfolioValue)).stopLossPrice,
+                    simulate: true
+                  }
+                )}
+              >
+                  Cover Losses
+      </button>
     </div>
   );
 };
