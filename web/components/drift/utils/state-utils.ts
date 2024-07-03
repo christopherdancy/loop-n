@@ -1,6 +1,6 @@
 
-import { StateAccount } from './types';
-import { LAMPORTS_PRECISION, PERCENTAGE_PRECISION } from './drift-exports';
+import { FeeTier, StateAccount } from '../types';
+import { BASE_PRECISION, LAMPORTS_PRECISION, PERCENTAGE_PRECISION } from './constants';
 import { BN } from '@coral-xyz/anchor';
 import { Connection, ParsedAccountData } from '@solana/web3.js';
 import * as anchor from '@coral-xyz/anchor';
@@ -58,6 +58,24 @@ export function calculateInitUserFee(stateAccount: StateAccount): BN {
 	} else {
 		return ZERO;
 	}
+}
+
+export function calculateTakerFee(estimatedEntryPrice: number, positionBaseSizeChange: number, feeTier: FeeTier | undefined) {
+	if (estimatedEntryPrice === 0 || positionBaseSizeChange === 0 || feeTier === undefined) {
+		return 0;
+	}
+	
+	// Calculate new position value in USD
+	const newPositionValue = (estimatedEntryPrice * Math.abs(positionBaseSizeChange)) / BASE_PRECISION;
+	
+	// Calculate taker fee in USD
+	const takerFee = (newPositionValue * feeTier.feeNumerator) / feeTier.feeDenominator;
+	
+	const threshold = 0.01; // Threshold for showing "Less than $0.01"
+	if (Math.abs(takerFee) < threshold) {
+		return "Less than $0.01";
+	}
+	return takerFee.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 export function getMaxNumberOfSubAccounts(stateAccount: StateAccount): BN {

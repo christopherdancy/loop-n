@@ -1,9 +1,10 @@
 import { createContext, useContext, useEffect, useState } from "react";
-import { useDriftProgramMarketData } from "../drift/drift-data-access";
-import { calculateTakerFee, BASE_PRECISION } from "../drift/drift-exports";
-import { calculateCollateralRequirements, calculateLimitOrderPrice, calculateLiquidationPriceShort } from "../drift/hedge-utils";
+import { useDriftProgramMarketData } from "../drift/drift-access";
+import { BASE_PRECISION } from "../drift/utils/constants";
+import { calculateCollateralRequirements, calculateLimitOrderPrice, calculateLiquidationPriceShort } from "../drift/utils/hedge-utils";
 import * as anchor from '@coral-xyz/anchor';
 import { FeeTier, PerpMarketAccount, PerpMarketConfig } from "../drift/types";
+import { calculateTakerFee } from "../drift/utils/state-utils";
 
 interface TradeData {
     leverage: string;

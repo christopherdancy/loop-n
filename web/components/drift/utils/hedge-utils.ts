@@ -1,4 +1,5 @@
-import {  PerpMarketAccount } from './types';
+import {  PerpMarketAccount } from '../types';
+
 export function calculateCollateralRequirements(
     market: PerpMarketAccount | undefined, 
     minPortfolioValue: string

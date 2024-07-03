@@ -3,9 +3,7 @@
 import { useWallet } from '@solana/wallet-adapter-react';
 import { AppHero } from '../ui/ui-layout';
 
-import {
-  PortfolioHedge
-} from './account-ui';
+import {PortfolioHedge} from './PortfolioHedge'
 
 export default function AccountListFeature() {
   const { publicKey } = useWallet();

@@ -1,18 +1,28 @@
 'use client';
 
 import { 
-  getDriftProgramId, 
-  DEFAULT_USER_NAME, 
   encodeName, 
-  getUserAccountPublicKey, 
-  getDriftStateAccountPublicKey, 
-  getUserStatsAccountPublicKey, 
-  getSpotMarketVaultPublicKey, 
+} from './utils/user-utils';
+import { 
   convertUSDCtoSmallestUnit,
-  getDriftSignerPublicKey,
-  findAllMarkets,
+} from './utils/math-utils';
+import { 
+  DEFAULT_USER_NAME,
   PRICE_PRECISION,
-} from './drift-exports';
+} from './utils/constants';
+import { 
+  findAllMarkets,
+} from './utils/perp-utils';
+import { 
+  getDriftStateAccountPublicKey,
+  getUserStatsAccountPublicKey,
+  getSpotMarketVaultPublicKey,
+  getDriftSignerPublicKey,
+  getUserAccountPublicKey,
+  getDriftProgramId
+} from './utils/program-utils';
+import { calculateInitUserFee, getRentExemptBalance, getRentCost } from './utils/state-utils';
+import { getOrderParams, getTriggerLimitOrderParams } from './utils/order-utils';
 import { Program } from '@coral-xyz/anchor';
 import * as anchor from '@coral-xyz/anchor';
 import { useConnection } from '@solana/wallet-adapter-react';
@@ -23,10 +33,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useCluster } from '../cluster/cluster-data-access';
 import { useAnchorProvider } from '../solana/solana-provider';
 import { useTransactionToast } from '../ui/ui-layout';
-import DriftIDL from './drift.json'
-import { FeeTier, MarketType, OrderTriggerCondition, PerpMarketAccount, PerpPosition, PositionDirection, StateAccount, UserAccount } from './types';
-import { calculateInitUserFee, getRentExemptBalance, getRentCost } from './state';
-import { getOrderParams, getTriggerLimitOrderParams } from './order-utils';
+import DriftIDL from './idl.json'
+import { FeeTier, MarketType, OrderTriggerCondition, PerpMarketAccount, PositionDirection, StateAccount, UserAccount } from './types';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export function useDriftProgram() {
@@ -66,7 +74,6 @@ export function useDriftProgramMarketData() {
   const [fees, setFees] = useState<{initUserFee: string, rentFee: number, rentExemptBalance: number,  tradeFees: FeeTier} | undefined>(undefined)
 
   const fetchPerpMarkets = async () => {
-    console.log('hi')
     try {
       const markets = (await findAllMarkets(program)).perpMarkets
       setPerpMarkets(markets);
@@ -121,7 +128,6 @@ export function useDriftProgramAccount(account?: PublicKey) {
   const [userAccount, setUserAccount] = useState<UserAccount | undefined>(undefined);
   const [, setIsLoadingPublicKeys] = useState(true);
   const [isLoadingUserAccount, setIsLoadingUserAccount] = useState(true);
-  const [, setError] = useState<Error | undefined>(undefined);
 
   // todo: this is the token account
   const pub = { pubkey: new PublicKey("EW3XKFY7ftPJJeRQPzvmk17Lzi4Azyqt3BJBX4rSDB1A"), isWritable: true, isSigner: false };
@@ -129,7 +135,6 @@ export function useDriftProgramAccount(account?: PublicKey) {
   const fetchPublicKeys = async () => {
     if (!account) return;
     setIsLoadingPublicKeys(true);
-    setError(undefined);
     try {
       setUserPublicKey(await getUserAccountPublicKey(program.programId, account, 0));
       setUserStatsPublicKey(getUserStatsAccountPublicKey(program.programId, account))
@@ -138,7 +143,7 @@ export function useDriftProgramAccount(account?: PublicKey) {
       setSignerPublicKey(await getDriftSignerPublicKey(program.programId));
       
     } catch (err) {
-      setError(err as Error);
+      console.error(err)
     } finally {
       setIsLoadingPublicKeys(false);
     }
@@ -148,13 +153,12 @@ export function useDriftProgramAccount(account?: PublicKey) {
   const fetchUserAccount = async () => {
     if (!account) return;
     setIsLoadingUserAccount(true);
-    setError(undefined);
     try {
       const user = await getUserAccountPublicKey(program.programId, account, 0);
       const userAccountData = await program.account.user.fetch(user) as UserAccount;
       setUserAccount(userAccountData);
     } catch (fetchError) {
-      setError(new Error("User account does not exist."));
+      console.error("User account does not exist.")
       setUserAccount(undefined);
     } finally {
       setIsLoadingUserAccount(false);
@@ -223,42 +227,6 @@ export function useDriftProgramAccount(account?: PublicKey) {
     },
     onError: (error) => {
       console.error("Failed to initialize user and stats:", error);
-    },
-  });
-
-  const closeHedgeMutation = useMutation({
-    mutationKey: ['drift', 'closeHedge', { cluster, account }],
-    mutationFn: async ({ pos, simulate }:{ pos: PerpPosition, simulate: boolean } ) => {
-      if (!account) {
-        throw new Error("Account is not connected.");
-      };
-      if (!userPublicKey || !statePublicKey || !userStatsPublicKey) {
-        throw new Error("Public keys are not ready.");
-      }
-      const hedgeIx = await createHedgeIx(program, statePublicKey, vaultPublicKey, userPublicKey, userStatsPublicKey, account, pos.baseAssetAmount, pos.marketIndex, PositionDirection.LONG);
-      
-      const tx = new Transaction()
-          .add(hedgeIx);
-
-      tx.feePayer = provider.wallet.publicKey;
-      if (simulate) {
-        const simulationResult = await connection.simulateTransaction(tx);
-        if (simulationResult.value.err) {
-          console.log("Simulation error:", simulationResult.value.logs);
-        } else {
-          console.log(simulationResult);
-        }
-      } else {
-        const txSig = await provider.sendAndConfirm(tx);
-        return txSig;
-      }
-      return "simulate"
-    },
-    onSuccess: (txSig) => {
-      transactionToast(txSig);
-    },
-    onError: (error) => {
-      console.error("Failed to deposit funds:", error);
     },
   });
   
@@ -352,7 +320,6 @@ export function useDriftProgramAccount(account?: PublicKey) {
   return {
     loopnHedgeMutation,
     withdrawMutation,
-    closeHedgeMutation,
     cancelOrderMutation,
     userAccount,
     isLoadingUserAccount,

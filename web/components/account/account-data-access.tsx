@@ -17,7 +17,7 @@ import { useTransactionToast } from '../ui/ui-layout';
 import { TokenListProvider, TokenInfo } from '@solana/spl-token-registry';
 import { useEffect, useMemo } from "react";
 import { PriceFeed, PriceServiceConnection } from '@pythnetwork/price-service-client';
-import { SupportedTokens } from '../drift/drift-exports';
+import { SupportedTokens } from '../drift/utils/perp-utils';
 // import { PythConnection } from "@pythnetwork/client";
 
 
@@ -39,6 +39,7 @@ export function useGetSignatures({ address }: { address: PublicKey }) {
   });
 }
 
+// todo: set this up
 // export function useGetPythPrices() {
 //   const queryClient = useQueryClient();
 //   const pythConnection = useMemo(() => new PriceServiceConnection("https://hermes.pyth.network"), []);
