@@ -1,7 +1,6 @@
 'use client';
 
 import { useWallet } from '@solana/wallet-adapter-react';
-import { WalletButton } from '../solana/solana-provider';
 import { AppHero } from '../ui/ui-layout';
 
 import {
@@ -11,19 +10,10 @@ import {
 export default function AccountListFeature() {
   const { publicKey } = useWallet();
   
-  if (!publicKey) {
     return (
-      <div >
-      <AppHero title="gm" subtitle="loop(n) here" />
-      <WalletButton />
-    </div>
-  );
-}
-
-  return (
-    <div>
+      <div>
       <AppHero
-        title={<PortfolioHedge address={publicKey}/>}
+        title={<PortfolioHedge address={!publicKey ? undefined : publicKey}/>}
       >
       </AppHero>
     </div>

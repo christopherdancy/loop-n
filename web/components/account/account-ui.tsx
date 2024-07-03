@@ -1,7 +1,7 @@
 /* eslint-disable no-unsafe-optional-chaining */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
-import React, { Dispatch, SetStateAction, useEffect } from 'react';
+import React, {useEffect } from 'react';
 import { PublicKey } from '@solana/web3.js';
 import { IconRefresh } from '@tabler/icons-react';
 import { useMemo, useState } from 'react';
@@ -11,7 +11,7 @@ import {
   useGetPythPrices,
   useGetTokenAccounts,
 } from './account-data-access';
-import { useDriftProgramAccount } from '../drift/drift-data-access';
+import { useDriftProgramAccount, useDriftProgramMarketData } from '../drift/drift-data-access';
 import { 
   BASE_PRECISION,
   SupportedTokens, 
@@ -32,7 +32,11 @@ import * as anchor from '@coral-xyz/anchor';
 import { UserAccount, PerpMarketAccount, PerpPosition, Order, PositionDirection, OrderTriggerCondition, OrderStatus, OrderType, MarketType, PerpMarketConfig, FeeTier } from '../drift/types';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend } from 'chart.js';
 import { calculateCollateralRequirements, calculateLimitOrderPrice, calculateLiquidationPriceShort, calculateCoverage } from '../drift/hedge-utils';
+import { TradeProvider, useTradeContext } from './TradeProvider';
+import { WalletButton } from '../solana/solana-provider';
+import CustomWalletButton from './CustomWalletButton';
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
+import { BaseWalletMultiButton, WalletConnectButton, WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 
 const ZERO = new BN(0);
 const demoFlow = true;
@@ -79,6 +83,15 @@ function handleDemoCancel(prevOrders: Order[], orderId: number): Order[] {
 function handleDemoClose(prevPositions: PerpPosition[], baseAssetAmount: BN): PerpPosition[] {
   return prevPositions.filter(pos => pos.baseAssetAmount !== baseAssetAmount);
 }
+
+
+
+
+
+
+
+
+
 const TokenSelector = ({ selectedToken, onTokenChange }: { selectedToken: PerpMarketConfig, onTokenChange: (e: {target: {value: any;};}) => void }) => {
   return (
     <div className="flex items-center justify-between">
@@ -100,23 +113,11 @@ const TokenSelector = ({ selectedToken, onTokenChange }: { selectedToken: PerpMa
   );
 };
 
-export function PortfolioHedge({ address }: { address: PublicKey }) {
-  const [selectedToken, setSelectedToken] = useState(SupportedTokens[0]);
+export function WalletBalance({ address, selectedToken, setTokenAmount, setSolBalance, setUserData }: { address: PublicKey, selectedToken: PerpMarketConfig, setTokenAmount: (walletBalance: string) => void, setSolBalance: (solBalance: number) => void, setUserData: (account: UserAccount) => void} ) {
+  const { userAccount } = useDriftProgramAccount(address);
   const [walletBalance, setWalletBalance] = useState('')
-  const [tokenAmount, setTokenAmount] = useState('');
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [minPortfolioValue, setMinPortfolioValue] = useState('');
-  const [market, setMarket] = useState<PerpMarketAccount>();
-  const [userFees, setUserFees] = useState<{initUserFee: string, rentFee: number, rentExemptBalance: number,  tradeFees: FeeTier}>();
   const tokenQuery = useGetTokenAccounts({ address });
   const solQuery = useGetBalance({ address });
-  // const prices = useGetPythPrices();
-  const { perpMarkets, fees, userAccount, loopnHedgeMutation } = useDriftProgramAccount(address);
-
-  const toggleExpanded = () => {
-    setIsExpanded(!isExpanded);
-  };
-
   const tokenItems = useMemo(() => {
     const items = tokenQuery.data ? [...tokenQuery.data] : [];
       if (solQuery.data) {
@@ -148,7 +149,13 @@ export function PortfolioHedge({ address }: { address: PublicKey }) {
       }
       return  items;
     }, [tokenQuery.data, solQuery.data, address]);
-  
+    
+  useEffect(() => {
+    if (solQuery.data) {
+      setSolBalance(solQuery.data);
+    }
+  }, [solQuery.data, setSolBalance]);
+
   useEffect(() => {  
     if(tokenItems) {
       const token = tokenItems.find((token) => token.tokenInfo.symbol === selectedToken.baseAssetSymbol )
@@ -161,6 +168,117 @@ export function PortfolioHedge({ address }: { address: PublicKey }) {
     }
       
   }, [selectedToken, tokenItems]);
+
+  useEffect(() => {
+    if (userAccount) {
+      setUserData(userAccount);
+    }
+  }, [userAccount]);
+
+  return (
+    <div className='text-sm'>
+      <span>{walletBalance} </span>
+      <button className='text-blue-500 disabled:text-slate-500' disabled={walletBalance==="0.00"} onClick={()=>setTokenAmount(walletBalance)}>MAX</button>
+    </div>
+  );
+}
+
+const InfoRow = ({ label, value }: {label:string, value: string | number}) => (
+  <div className="flex justify-between items-center mb-2 pl-1">
+    <span>{label}</span>
+    <span>{value}</span>
+  </div>
+);
+
+function TradeDetails({solBalance, userData}: {solBalance: number, userData: UserAccount | undefined}) {
+  const { tradeData, estimatedWorth, selectedToken, minPortfolioValue} = useTradeContext();
+  return (
+    <div className="text-xs text-gray-500 mt-4 pl-1">
+      {/* HODL Info Section */}
+      <div className="flex justify-between items-center mb-2 underline font-bold decoration-blue-500">
+        <span>HODL Info</span>
+      </div>
+      <InfoRow label="Protected asset" value={selectedToken.baseAssetSymbol} />
+      <InfoRow label="HODL Value" value={`$${estimatedWorth.toFixed(2)}`} />
+      <InfoRow label="Protected Value" value={!minPortfolioValue ? '$0' : minPortfolioValue} />
+
+      {/* Trade Info Section */}
+      {tradeData && (
+        <div>
+          <div className="flex justify-between items-center my-2 underline font-bold decoration-blue-500">
+            <span>Trade Info</span>
+          </div>
+          <InfoRow label="Leverage" value={tradeData.leverage} />
+          <InfoRow label="Strike price" value={`$${tradeData.strikePrice.toFixed(2)}`} />
+          <InfoRow label="Stop Loss Price" value={`$${tradeData.stopLossPrice.toFixed(2)}`} />
+          <InfoRow label="Liquidation Price" value={tradeData.liquidationPrice} />
+
+      {/* Fee Info Section */}
+          <div className="flex justify-between items-center my-2 underline font-bold decoration-blue-500">
+            <span>Fee Info</span>
+          </div>
+          <InfoRow label="Collateral" value={`$${tradeData.collateral.toFixed(2)}`} />
+          <InfoRow label="Tx fee" value={tradeData.txFee} />
+          {
+            !userData &&
+            <InfoRow label="Init Account Fee" value={tradeData.initAccountFee} />
+          }
+          {solBalance < tradeData.rentExempt && (
+          <InfoRow
+            label="Solana Rent Fee"
+            value={formatTokenAmount(new BN(tradeData.rent), 9, 2)}
+          />
+          )} 
+        </div>
+     )}
+    </div>
+  );
+}
+
+export function HedgeButton({ address }: {address?: PublicKey}) {
+  const { tradeData, selectedToken, tokenAmount, minPortfolioValue } = useTradeContext();
+  const { loopnHedgeMutation } = useDriftProgramAccount(address);
+  return (
+    <>
+    {
+      !address ?
+        <WalletMultiButton>CONNECT WALLET </WalletMultiButton> :
+      !tokenAmount || !minPortfolioValue || !tradeData?
+        <div
+          className="p-4 rounded-xl bg-gray-500 w-full text-white font-semibold font-mono cursor-default pointer-events-none text-sm"
+        >
+          {!tradeData ? "Data Not Loaded" : tokenAmount && !minPortfolioValue ? "Missing Min. HODL Value" : "Missing HODL Position"}
+        </div> 
+      :
+        <button
+          className="btn btn-primary w-full text-white font-mono"
+          onClick={() =>
+            loopnHedgeMutation.mutate({
+              usdcDeposit: tradeData.collateral,
+              baseAssetAmount: new anchor.BN(tokenAmount).mul(BASE_PRECISION),
+              marketIndex: selectedToken.marketIndex,
+              price: tradeData.strikePrice,
+              stopLossPrice: tradeData.stopLossPrice,
+              simulate: true,
+            })
+          }
+        >
+          Cover Losses
+        </button>
+    }
+    </>
+  );
+}
+
+// todo: finish styling button
+export function PortfolioHedge({ address }: { address: PublicKey | undefined }) {
+  const [selectedToken, setSelectedToken] = useState(SupportedTokens[0]);
+  const [tokenAmount, setTokenAmount] = useState('');
+  const [minPortfolioValue, setMinPortfolioValue] = useState('');
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [solBalance, setSolBalance] = useState(0);
+  const [userData, setUserData] = useState<UserAccount>();
+  // const prices = useGetPythPrices();
   
   const handleTokenChange = (e: { target: { value: any; }; }) => {
     const token = SupportedTokens.find((supportedToken) => e.target.value === supportedToken.baseAssetSymbol)
@@ -202,6 +320,10 @@ export function PortfolioHedge({ address }: { address: PublicKey }) {
   }, [tokenAmount, selectedToken]);
   // }, [prices.data, tokenAmount, selectedToken]);
 
+  const toggleExpanded = () => {
+    setIsExpanded(!isExpanded);
+  };
+
 
   // Adjust minPortfolioValue if it exceeds estimatedWorth
   useEffect(() => {
@@ -211,24 +333,12 @@ export function PortfolioHedge({ address }: { address: PublicKey }) {
     }
   }, [estimatedWorth, minPortfolioValue]);
 
-  useEffect(() => {
-    if (perpMarkets) {
-      const market = perpMarkets.find((market) => market.marketIndex === selectedToken.marketIndex);
-      if (market) {
-        setMarket(market)
-      }
-    }
-
-    if (fees) {
-      setUserFees(fees)
-    }
-  }, [selectedToken, perpMarkets, fees]);
-
   // proper logic for account fees without market or inputs + reorg
   // account fees for account creation is .02 but I am unsure where this is coming from
   // update collateral information usdc + solona fee
   // indicate what fee (denom) it is in
   return (
+    <TradeProvider selectedToken={selectedToken} minPortfolioValue={minPortfolioValue} tokenAmount={tokenAmount} estimatedWorth={estimatedWorth}>
     <div className="max-w-md mx-auto bg-white p-8 rounded-3xl shadow-md">
       <div className='text-left py-4 text-xl text-bold font-mono'>
       <span>Portfolio Coverage</span>
@@ -236,10 +346,7 @@ export function PortfolioHedge({ address }: { address: PublicKey }) {
       <div className="bg-gray-50 rounded-2xl p-4 mb-4 font-mono">
         <div className="flex justify-between items-left mb-2 pl-1">
           <span>HODL Position</span>
-          <div className='text-sm'>
-          <span>{walletBalance} </span>
-          <button className='text-blue-500 disabled:text-slate-500' disabled={walletBalance==="0.00"} onClick={()=>setTokenAmount(walletBalance)}>MAX</button>
-          </div>
+          {address && <WalletBalance address={address} selectedToken={selectedToken} setTokenAmount={setTokenAmount} setSolBalance={setSolBalance} setUserData={setUserData}></WalletBalance>}
         </div>
         <div className="py-2 grid grid-cols-3 gap-4 items-center">
           <input
@@ -269,7 +376,7 @@ export function PortfolioHedge({ address }: { address: PublicKey }) {
           />
         </div>
         <div className='text-left pl-1'>
-          <span>{calculateCoverage(minPortfolioValue, estimatedWorth)}<text className='text-sm text-gray-500'>% of current value</text></span>
+          <span>{calculateCoverage(minPortfolioValue, estimatedWorth)}<span className='text-sm text-gray-500'>% of current value</span></span>
         </div>
       </div>
       <div className="bg-gray-50 p-4 rounded-2xl font-mono mb-4">
@@ -282,87 +389,11 @@ export function PortfolioHedge({ address }: { address: PublicKey }) {
           {isExpanded ? 'Hide Details' : 'Details'}
         </button>
       </div>
-      {isExpanded && (
-        <div className="text-xs text-gray-500 mt-4 pl-1">
-          <div className="flex justify-between items-center mb-2 underline font-bold decoration-blue-500">
-            <span>HODL Info</span>
-          </div>
-          <div className="flex justify-between items-center mb-2 pl-1">
-            <span>Protected asset</span>
-            <span>{selectedToken.baseAssetSymbol}</span>
-          </div>
-          <div className="flex justify-between items-center mb-2 pl-1">
-            <span>HODL Value</span>
-            <span>{`$${estimatedWorth.toFixed(2)}`}</span>
-          </div>
-          <div className="flex justify-between items-center mb-2 pl-1">
-            <span>Protected Value</span>
-          <span>{!minPortfolioValue ? '$0' : minPortfolioValue}</span>
-          </div>
-          { market &&
-          <div>
-          <div className="flex justify-between items-center my-2 underline font-bold decoration-blue-500">
-            <span>Trade Info</span>
-          </div>
-          <div className="flex justify-between items-center mb-2 pl-1">
-            <span>Leverage</span>
-            <span>{`${calculateCollateralRequirements(market, minPortfolioValue).leverage}X`}</span>
-          </div>
-          <div className="flex justify-between items-center mb-2 pl-1">
-            <span>Coverage price</span>
-            <span>{`$${calculateLimitOrderPrice(minPortfolioValue, tokenAmount).toFixed(2)}`}</span>
-          </div>
-          <div className="flex justify-between items-center mb-2 pl-1">
-            <span>Stop Loss Price</span>
-            <span>{`$${calculateLiquidationPriceShort(tokenAmount, calculateLimitOrderPrice(minPortfolioValue, tokenAmount), calculateCollateralRequirements(market, minPortfolioValue)).stopLossPrice.toFixed(2)}`}</span>
-          </div>
-          <div className="flex justify-between items-center mb-2 pl-1">
-            <span>Liquidation Price</span>
-            <span>{`$${calculateLiquidationPriceShort(tokenAmount, calculateLimitOrderPrice(minPortfolioValue, tokenAmount), calculateCollateralRequirements(market, minPortfolioValue)).liqPrice.toFixed(2)}`}</span>
-          </div>
-          </div>
-          }
-          <div className="flex justify-between items-center my-2 underline font-bold decoration-blue-500">
-            <span>Fee Info</span>
-          </div>
-          <div className="flex justify-between items-center mb-2 pl-1">
-            <span>Collateral</span>
-            <span>{`$${calculateCollateralRequirements(market, minPortfolioValue).initialCollateral.toFixed(2)}`}</span>
-          </div>
-          <div className="flex justify-between items-center mb-2 pl-1">
-            <span>Tx fee</span>
-            <span>{calculateTakerFee(calculateLimitOrderPrice(minPortfolioValue, tokenAmount), new anchor.BN(tokenAmount).mul(BASE_PRECISION), fees?.tradeFees)}</span>
-          </div>
-          { userAccount &&
-          <div className="flex justify-between items-center mb-2 pl-1">
-            <span>Init Account Fee</span>
-            <span>{userFees.initUserFee}</span>
-          </div>
-          }
-          { solQuery.data < userFees.rentExemptBalance &&
-          <div className="flex justify-between items-center mb-2 pl-1">
-            <span>Solana Rent Fee</span>
-            <span>{(formatTokenAmount(new BN(userFees?.rentFee), 9, 2))}</span>
-          </div>
-          }
-        </div>
-      )}
+      {isExpanded && <TradeDetails solBalance={solBalance} userData={userData}/>}
     </div>
-      <button className="btn btn-primary w-full text-white font-mono" 
-                onClick={() => loopnHedgeMutation.mutate(
-                  { 
-                    usdcDeposit: calculateCollateralRequirements(market, minPortfolioValue).initialCollateral,
-                    baseAssetAmount: new anchor.BN(tokenAmount).mul(BASE_PRECISION),
-                    marketIndex: selectedToken.marketIndex,
-                    price: calculateLimitOrderPrice(minPortfolioValue, tokenAmount),
-                    stopLossPrice: calculateLiquidationPriceShort(tokenAmount, calculateLimitOrderPrice(minPortfolioValue, tokenAmount), calculateCollateralRequirements(market, minPortfolioValue)).stopLossPrice,
-                    simulate: true
-                  }
-                )}
-              >
-                  Cover Losses
-      </button>
+       <HedgeButton address={address}/>
     </div>
+    </TradeProvider>
   );
 };
 

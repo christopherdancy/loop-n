@@ -24,9 +24,9 @@ import { useCluster } from '../cluster/cluster-data-access';
 import { useAnchorProvider } from '../solana/solana-provider';
 import { useTransactionToast } from '../ui/ui-layout';
 import DriftIDL from './drift.json'
-import { FeeTier, MarketType, OrderTriggerCondition, PerpMarketAccount, PerpPosition, PositionDirection, PostOnlyParams, StateAccount, UserAccount } from './types';
+import { FeeTier, MarketType, OrderTriggerCondition, PerpMarketAccount, PerpPosition, PositionDirection, StateAccount, UserAccount } from './types';
 import { calculateInitUserFee, getRentExemptBalance, getRentCost } from './state';
-import { getLimitOrderParams, getOrderParams, getTriggerLimitOrderParams } from './order-utils';
+import { getOrderParams, getTriggerLimitOrderParams } from './order-utils';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export function useDriftProgram() {
@@ -57,7 +57,55 @@ export function useDriftProgram() {
 // todo: deposit method + create short + close short (test functionality)
 // todo: read account + balance + open position 
 // todo: configure short and deposit based on sol balance + value (POC)
-export function useDriftProgramAccount(account: PublicKey) {
+export function useDriftProgramMarketData() {
+  const { 
+    program,
+    connection
+   } = useDriftProgram();
+  const [perpMarkets, setPerpMarkets] = useState<PerpMarketAccount[] | undefined>(undefined);
+  const [fees, setFees] = useState<{initUserFee: string, rentFee: number, rentExemptBalance: number,  tradeFees: FeeTier} | undefined>(undefined)
+
+  const fetchPerpMarkets = async () => {
+    console.log('hi')
+    try {
+      const markets = (await findAllMarkets(program)).perpMarkets
+      setPerpMarkets(markets);
+    } catch (fetchError) {
+      console.log(new Error("Perp accounts does not exist." + fetchError));
+    }
+  };
+
+  const fetchMarketFees = async () => {
+    try {
+      const stateAccountPublicKey = await getDriftStateAccountPublicKey(program.programId);
+      const stateAccountData = await program.account.state.fetch(stateAccountPublicKey) as StateAccount;
+      setFees(
+        {
+          initUserFee: calculateInitUserFee(stateAccountData), 
+          rentFee: await getRentCost(connection, program.account.user.size + program.account.userStats.size, 2), 
+          rentExemptBalance: await getRentExemptBalance(connection, program.account.user.size), 
+          tradeFees:stateAccountData.perpFeeStructure.feeTiers[0]
+        }
+      )
+    } catch (fetchError) {
+      console.log(new Error("State account does not exist." + fetchError));
+    }
+  };
+
+
+  useEffect(() => {
+    fetchPerpMarkets();
+    fetchMarketFees()
+  }, [program.programId]);
+  
+
+  return {
+    perpMarkets,
+    fees
+  };
+}
+
+export function useDriftProgramAccount(account?: PublicKey) {
   const transactionToast = useTransactionToast();
   const { 
     program, 
@@ -66,42 +114,29 @@ export function useDriftProgramAccount(account: PublicKey) {
     connection
    } = useDriftProgram();
   const [userPublicKey, setUserPublicKey] = useState<PublicKey | undefined>(undefined);
+  const [userStatsPublicKey, setUserStatsPublicKey] = useState<PublicKey | undefined>(undefined);
   const [statePublicKey, setStatePublicKey] = useState<PublicKey | undefined>(undefined);
   const [vaultPublicKey, setVaultPublicKey] = useState<PublicKey | undefined>(undefined);
   const [signerPublicKey, setSignerPublicKey] = useState<PublicKey | undefined>(undefined);
   const [userAccount, setUserAccount] = useState<UserAccount | undefined>(undefined);
-  const [perpMarkets, setPerpMarkets] = useState<PerpMarketAccount[] | undefined>(undefined);
-  const [fees, setFees] = useState<{initUserFee: string, rentFee: number, rentExemptBalance: number,  tradeFees: FeeTier} | undefined>(undefined)
   const [, setIsLoadingPublicKeys] = useState(true);
-  const [isLoadingPerpMarkets, setIsLoadingPerpMarkets] = useState(true);
   const [isLoadingUserAccount, setIsLoadingUserAccount] = useState(true);
-  const [error2, setError] = useState<Error | undefined>(undefined);
-  const userStatsPublicKey = getUserStatsAccountPublicKey(program.programId, account);
+  const [, setError] = useState<Error | undefined>(undefined);
 
   // todo: this is the token account
   const pub = { pubkey: new PublicKey("EW3XKFY7ftPJJeRQPzvmk17Lzi4Azyqt3BJBX4rSDB1A"), isWritable: true, isSigner: false };
 
   const fetchPublicKeys = async () => {
+    if (!account) return;
     setIsLoadingPublicKeys(true);
     setError(undefined);
     try {
-      const user = await getUserAccountPublicKey(program.programId, account, 0);
-      const stateAccount = await getDriftStateAccountPublicKey(program.programId);
-      const vault = await getSpotMarketVaultPublicKey(program.programId, 0);
-      const signer = await getDriftSignerPublicKey(program.programId);
-      const stateAccountFetch = await program.account.state.fetch(stateAccount) as StateAccount;
-      setFees(
-        {
-          initUserFee: calculateInitUserFee(stateAccountFetch), 
-          rentFee: await getRentCost(connection, program.account.user.size + program.account.userStats.size, 2), 
-          rentExemptBalance: await getRentExemptBalance(connection, program.account.user.size), 
-          tradeFees:stateAccountFetch.perpFeeStructure.feeTiers[0]
-        }
-      )
-      setUserPublicKey(user);
-      setStatePublicKey(stateAccount);
-      setVaultPublicKey(vault);
-      setSignerPublicKey(signer);
+      setUserPublicKey(await getUserAccountPublicKey(program.programId, account, 0));
+      setUserStatsPublicKey(getUserStatsAccountPublicKey(program.programId, account))
+      setStatePublicKey(await getDriftStateAccountPublicKey(program.programId));
+      setVaultPublicKey(await getSpotMarketVaultPublicKey(program.programId, 0));
+      setSignerPublicKey(await getDriftSignerPublicKey(program.programId));
+      
     } catch (err) {
       setError(err as Error);
     } finally {
@@ -111,6 +146,7 @@ export function useDriftProgramAccount(account: PublicKey) {
   
 
   const fetchUserAccount = async () => {
+    if (!account) return;
     setIsLoadingUserAccount(true);
     setError(undefined);
     try {
@@ -125,25 +161,12 @@ export function useDriftProgramAccount(account: PublicKey) {
     }
   };
 
-  const fetchPerpMarkets = async () => {
-    setIsLoadingPerpMarkets(true);
-    setError(undefined);
-    try {
-      const perpMarkets = (await findAllMarkets(program)).perpMarkets
-      setPerpMarkets(perpMarkets);
-    } catch (fetchError) {
-      setError(new Error("Perp accounts does not exist."));
-      setPerpMarkets(undefined);
-    } finally {
-      setIsLoadingPerpMarkets(false);
-    }
-  };
-
 
   useEffect(() => {
-    fetchPublicKeys();
-    fetchUserAccount();
-    fetchPerpMarkets();
+    if (account) {
+      fetchPublicKeys();
+      fetchUserAccount();
+    }
   }, [program.programId, account]);
   
 
@@ -151,6 +174,10 @@ export function useDriftProgramAccount(account: PublicKey) {
   const loopnHedgeMutation = useMutation({
     mutationKey: ['drift', 'initializeUserAndStats', { cluster, account }],
     mutationFn: async ({ usdcDeposit, baseAssetAmount, marketIndex, price, stopLossPrice, simulate }:{ usdcDeposit: number, baseAssetAmount: number, marketIndex: number, price: number, stopLossPrice: number, simulate: boolean } ) => {
+      if (!account) {
+        throw new Error("Account is not connected.");
+      };
+
       if (!userPublicKey || !statePublicKey || !userStatsPublicKey) {
         throw new Error("Public keys are not ready.");
       }
@@ -202,6 +229,9 @@ export function useDriftProgramAccount(account: PublicKey) {
   const closeHedgeMutation = useMutation({
     mutationKey: ['drift', 'closeHedge', { cluster, account }],
     mutationFn: async ({ pos, simulate }:{ pos: PerpPosition, simulate: boolean } ) => {
+      if (!account) {
+        throw new Error("Account is not connected.");
+      };
       if (!userPublicKey || !statePublicKey || !userStatsPublicKey) {
         throw new Error("Public keys are not ready.");
       }
@@ -235,6 +265,10 @@ export function useDriftProgramAccount(account: PublicKey) {
   const cancelOrderMutation = useMutation({
     mutationKey: ['drift', 'closeHedge', { cluster, account }],
     mutationFn: async ({ orderId, simulate }:{ orderId: number, simulate: boolean } ) => {
+      if (!account) {
+        throw new Error("Account is not connected.");
+      };
+
       if (!userPublicKey || !statePublicKey || !userStatsPublicKey) {
         throw new Error("Public keys are not ready.");
       }
@@ -268,6 +302,9 @@ export function useDriftProgramAccount(account: PublicKey) {
   const withdrawMutation = useMutation({
     mutationKey: ['drift', 'withdrawFunds', { cluster, account }],
     mutationFn: async () => {
+      if (!account) {
+        throw new Error("Account is not connected.");
+      };
       // Create deposit instruction
       const withdrawInstruction = await program.methods.withdraw(
         "0", // 0 usdc, 1 sol
@@ -318,12 +355,8 @@ export function useDriftProgramAccount(account: PublicKey) {
     closeHedgeMutation,
     cancelOrderMutation,
     userAccount,
-    perpMarkets,
     isLoadingUserAccount,
-    isLoadingPerpMarkets,
-    refetchPerpMarkets: fetchPerpMarkets,
-    refetchUserAccount: fetchUserAccount, 
-    fees
+    userPublicKey
   };
 }
 
