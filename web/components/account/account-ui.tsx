@@ -8,7 +8,6 @@ import { useMemo, useState } from 'react';
 import { AppModal } from '../ui/ui-layout';
 import {
   useGetBalance,
-  useGetPythPrices,
   useGetTokenAccounts,
 } from './account-data-access';
 import { useDriftProgramAccount, useDriftProgramMarketData } from '../drift/drift-access';
@@ -23,7 +22,6 @@ import {
   formatTokenAmount, 
   getActivePerpPositionsForUserAccount, 
   getMarketConfigByIndex, 
-  getOpenOrdersForUserAccount, 
   getPositionEstimatedExitPriceAndPnl 
 } from '../drift/drift-exports';
 import { BN } from '@coral-xyz/anchor';
@@ -34,7 +32,6 @@ import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement
 import { calculateCollateralRequirements, calculateLimitOrderPrice, calculateLiquidationPriceShort, calculateCoverage } from '../drift/utils/hedge-utils';
 import { TradeProvider, useTradeContext } from './TradeProvider';
 import { WalletButton } from '../solana/solana-provider';
-import CustomWalletButton from './CustomWalletButton';
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
 import { CreateHedgeButton } from './Hedge/CreateHedgeButton';
 import { HedgeDetails } from './Hedge/HedgeDetails';

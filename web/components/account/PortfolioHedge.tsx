@@ -8,6 +8,7 @@ import { HedgeDetails } from "./Hedge/HedgeDetails";
 import { TokenSelector } from "./Hedge/TokenSelector";
 import { TradeProvider } from "./TradeProvider";
 import { UserWalletBalance } from "./Hedge/UserWalletBalance";
+import { useGetPythPrices } from "./pyth-data";
 
 export function PortfolioHedge({ address }: { address: PublicKey | undefined }) {
     const [selectedToken, setSelectedToken] = useState(SupportedTokens[0]);
@@ -16,7 +17,7 @@ export function PortfolioHedge({ address }: { address: PublicKey | undefined }) 
     const [isExpanded, setIsExpanded] = useState(false);
     const [solBalance, setSolBalance] = useState(0);
     const [userData, setUserData] = useState<UserAccount>();
-    // const prices = useGetPythPrices();
+    const { data: prices } = useGetPythPrices();
     
     const handleTokenChange = (e: { target: { value: any; }; }) => {
       const token = SupportedTokens.find((supportedToken) => e.target.value === supportedToken.baseAssetSymbol)
@@ -27,7 +28,6 @@ export function PortfolioHedge({ address }: { address: PublicKey | undefined }) 
       };
     };
     
-    // todo: track for pepe and bonk ... small amounts
     const handleTokenAmountChange = (e: { target: { value: any; }; }) => {
       const value = e.target.value;
       // Ensure only numbers and a single decimal point are allowed)
@@ -49,15 +49,12 @@ export function PortfolioHedge({ address }: { address: PublicKey | undefined }) 
   
     // Calculate the estimated worth using useMemo
     const estimatedWorth = useMemo(() => {
-      const prices = {data: 11.5} 
-      if (!prices.data || !tokenAmount) return 0;
-      // const priceData = prices.data[selectedToken.pythId.slice(2)]; // Remove '0x' prefix
-      // if (!priceData) return 0;
-      // const price = parseFloat(priceData.price) * 10 ** priceData.expo;
-      const price= 146.26
-      return parseFloat(tokenAmount) * price;
-    }, [tokenAmount, selectedToken]);
-    // }, [prices.data, tokenAmount, selectedToken]);
+        if (!prices || !tokenAmount) return 0;
+        const priceData = prices[selectedToken.pythId.slice(2)]; // Remove '0x' prefix
+        if (!priceData) return 0;
+        const price = parseFloat(priceData.price) * 10 ** priceData.expo;
+        return parseFloat(tokenAmount) * price;
+    }, [prices, tokenAmount, selectedToken]);
   
     const toggleExpanded = () => {
       setIsExpanded(!isExpanded);
