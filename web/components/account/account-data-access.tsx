@@ -53,8 +53,8 @@ export function useGetTokenAccounts({ address }: { address: PublicKey }) {
             symbol: tokenInfo.symbol,
             logoURI: tokenInfo.logoURI,
           } : {
-            name: mintAddress === "8zGuJQqwhZafTah7Uc7Z4tXRnguqkn5KLFAP8oV6PHe2" ? "USDC" : mintAddress === "9Su8ynv5xhMa12bfqQLkW1Y4aeSxQKD9EiaMNb1JQLay" ? "LINK" : 'Unknown Token',
-            symbol: mintAddress === "8zGuJQqwhZafTah7Uc7Z4tXRnguqkn5KLFAP8oV6PHe2" ? "USDC" : mintAddress === "9Su8ynv5xhMa12bfqQLkW1Y4aeSxQKD9EiaMNb1JQLay" ? "LINK" : 'Unknown Token',
+            name: mintAddress === "EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm" ? "WIF" : mintAddress === "9Su8ynv5xhMa12bfqQLkW1Y4aeSxQKD9EiaMNb1JQLay" ? "LINK" : 'Unknown Token',
+            symbol: mintAddress === "EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm" ? "WIF" : mintAddress === "9Su8ynv5xhMa12bfqQLkW1Y4aeSxQKD9EiaMNb1JQLay" ? "LINK" : 'Unknown Token',
             logoURI: null,
           },
         };

@@ -22,6 +22,7 @@ export function UserWalletBalance({ address, selectedToken, setTokenAmount, setS
                     mint: 'SOL',
                     tokenAmount: {
                       amount: solQuery.data,
+                      decimals: 9
                     },
                   },
                 },
@@ -51,9 +52,12 @@ export function UserWalletBalance({ address, selectedToken, setTokenAmount, setS
   
     useEffect(() => {  
       if(tokenItems) {
+        console.log(tokenItems)
         const token = tokenItems.find((token) => token.tokenInfo.symbol === selectedToken.baseAssetSymbol )
         if (token) {
-          setWalletBalance((formatTokenAmount(new BN(token.account.data.parsed.info.tokenAmount.amount), 9)))
+          setWalletBalance((formatTokenAmount(
+            new BN(token.account.data.parsed.info.tokenAmount.amount), 
+            token.account.data.parsed.info.tokenAmount.decimals)))
         }
         else{
           setWalletBalance("0.00")
