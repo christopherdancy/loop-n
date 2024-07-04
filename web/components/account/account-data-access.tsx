@@ -62,3 +62,26 @@ export function useGetTokenAccounts({ address }: { address: PublicKey }) {
     },
   });
 }
+
+export function useGetUSDCAccount(address: PublicKey) {
+  const { connection } = useConnection();
+
+  return useQuery({
+    queryKey: ['get-usdc-account', { endpoint: connection.rpcEndpoint, address }],
+    queryFn: async () => {
+      const tokenAccounts = await connection.getTokenAccountsByOwner(address, {
+        mint: new PublicKey('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'),
+        programId: TOKEN_PROGRAM_ID,
+      });
+
+      if (!tokenAccounts.value.length) {
+        throw new Error('User does not have a USDC token account');
+      }
+
+      // Assuming the user has only one USDC account
+      const usdcAccount = tokenAccounts.value[0].pubkey;
+
+      return usdcAccount;
+    },
+  });
+}

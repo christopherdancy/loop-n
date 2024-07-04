@@ -25,7 +25,7 @@ export async function findAllMarkets(program: Program): Promise<{
   }
 
 // todo: perp markets for mainnet
-// todo: setup ts to normalize types
+// todo: setup ts to normalize types (1M)
 // PerpMarketConfig
 export const SupportedTokens: PerpMarketConfig[] =
 [

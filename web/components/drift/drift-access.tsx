@@ -35,6 +35,7 @@ import { useAnchorProvider } from '../solana/solana-provider';
 import { useTransactionToast } from '../ui/ui-layout';
 import DriftIDL from './idl.json'
 import { FeeTier, MarketType, OrderTriggerCondition, PerpMarketAccount, PositionDirection, StateAccount, UserAccount } from './types';
+import { useGetUSDCAccount } from '../account/account-data-access';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export function useDriftProgram() {
@@ -129,9 +130,6 @@ export function useDriftProgramAccount(account?: PublicKey) {
   const [, setIsLoadingPublicKeys] = useState(true);
   const [isLoadingUserAccount, setIsLoadingUserAccount] = useState(true);
 
-  // todo: this is the token account
-  const pub = { pubkey: new PublicKey("EW3XKFY7ftPJJeRQPzvmk17Lzi4Azyqt3BJBX4rSDB1A"), isWritable: true, isSigner: false };
-
   const fetchPublicKeys = async () => {
     if (!account) return;
     setIsLoadingPublicKeys(true);
@@ -188,7 +186,7 @@ export function useDriftProgramAccount(account?: PublicKey) {
   
       const initializeUserStatsIx = await createInitializeUserStatsIx(program, statePublicKey, userStatsPublicKey, account);
       const initializeUserIx = await createInitializeUserIx(program, statePublicKey, userPublicKey, userStatsPublicKey, account);
-      const depositIx = await createDepositIx(program, statePublicKey, vaultPublicKey, userPublicKey, userStatsPublicKey, pub, account, usdcDeposit);
+      const depositIx = await createDepositIx(program, statePublicKey, vaultPublicKey, userPublicKey, userStatsPublicKey, account, usdcDeposit);
       const hedgeIx = await createHedgeIx(program, statePublicKey, vaultPublicKey, userPublicKey, userStatsPublicKey, account, baseAssetAmount, marketIndex, price);
       const stopLossIx = await createStopLossIx(program, statePublicKey, vaultPublicKey, userPublicKey, userStatsPublicKey, account, baseAssetAmount, marketIndex, price, stopLossPrice);
       let tx;
@@ -267,59 +265,8 @@ export function useDriftProgramAccount(account?: PublicKey) {
     },
   });
 
-  const withdrawMutation = useMutation({
-    mutationKey: ['drift', 'withdrawFunds', { cluster, account }],
-    mutationFn: async () => {
-      if (!account) {
-        throw new Error("Account is not connected.");
-      };
-      // Create deposit instruction
-      const withdrawInstruction = await program.methods.withdraw(
-        "0", // 0 usdc, 1 sol
-        convertUSDCtoSmallestUnit(100), // setup conversion
-        true
-        ) // replace with actual 'reduceOnly' logic as needed
-        .accounts({
-            state: statePublicKey,
-            spotMarketVault: vaultPublicKey,
-            user: userPublicKey,
-            userStats: userStatsPublicKey,
-            userTokenAccount: pub.pubkey,
-            authority: account,
-            tokenProgram: TOKEN_PROGRAM_ID,
-            driftSigner: signerPublicKey,
-        }
-        )
-        .remainingAccounts([
-          { pubkey: new PublicKey("5SSkXsEKQepHHAewytPVwdej4epN1nxgLVM84L4KXgy7"), isWritable: false, isSigner: false }, 
-          { pubkey: new PublicKey("J83w4HKfqxwcq3BEMMkPFSppX3gqekLyLJBexebFVkix"), isWritable: true, isSigner: false }, 
-          { pubkey: new PublicKey("6gMq3mRCKf8aP3ttTyYhuijVZ2LGi14oDsBbkgubfLB3"), isWritable: true, isSigner: false }, 
-          { pubkey: new PublicKey("3x85u7SWkmmr7YQGYhtjARgxwegTLJgkSLRprfXod6rh"), isWritable: true, isSigner: false }
-        ]) 
-        .instruction();
-
-      const tx = new Transaction().add(withdrawInstruction);
-      tx.feePayer = provider.wallet.publicKey;
-      const txSig = await provider.sendAndConfirm(tx);
-      return txSig;
-
-      // const simulationResult = await connection.simulateTransaction(tx);
-      // if (simulationResult.value.err) {
-      //   console.log("Simulation error:", simulationResult.value.logs);
-      // }
-    },
-    onSuccess: (txSig) => {
-      transactionToast(txSig);
-      fetchUserAccount()
-    },
-    onError: (error) => {
-      console.error("Failed to deposit funds:", error);
-    },
-  });
-
   return {
     loopnHedgeMutation,
-    withdrawMutation,
     cancelOrderMutation,
     userAccount,
     isLoadingUserAccount,
@@ -357,7 +304,8 @@ const createInitializeUserIx = async (program: Program<any>, statePublicKey: anc
     .instruction();
 };
 
-const createDepositIx = async (program: Program<any>, statePublicKey: anchor.web3.PublicKey, vaultPublicKey: anchor.web3.PublicKey | undefined, userPublicKey: anchor.web3.PublicKey, userStatsPublicKey: anchor.web3.PublicKey, pub: { pubkey: any; isWritable?: boolean; isSigner?: boolean; }, account: anchor.web3.PublicKey, usdcDeposit: number) => {
+const createDepositIx = async (program: Program<any>, statePublicKey: anchor.web3.PublicKey, vaultPublicKey: anchor.web3.PublicKey | undefined, userPublicKey: anchor.web3.PublicKey, userStatsPublicKey: anchor.web3.PublicKey, account: anchor.web3.PublicKey, usdcDeposit: number) => {
+  const userUSDCAccount = useGetUSDCAccount(userPublicKey).data
   return await program.methods.deposit(
     "0", // 0 usdc, 1 sol
     convertUSDCtoSmallestUnit(usdcDeposit), // setup conversion
@@ -368,7 +316,7 @@ const createDepositIx = async (program: Program<any>, statePublicKey: anchor.web
       spotMarketVault: vaultPublicKey,
       user: userPublicKey,
       userStats: userStatsPublicKey,
-      userTokenAccount: pub.pubkey,
+      userTokenAccount: userUSDCAccount,
       authority: account,
       tokenProgram: TOKEN_PROGRAM_ID,
     })

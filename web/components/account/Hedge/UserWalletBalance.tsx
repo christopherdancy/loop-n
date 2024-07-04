@@ -52,7 +52,6 @@ export function UserWalletBalance({ address, selectedToken, setTokenAmount, setS
   
     useEffect(() => {  
       if(tokenItems) {
-        console.log(tokenItems)
         const token = tokenItems.find((token) => token.tokenInfo.symbol === selectedToken.baseAssetSymbol )
         if (token) {
           setWalletBalance((formatTokenAmount(
