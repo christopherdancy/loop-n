@@ -79,7 +79,7 @@ export function useDriftProgramMarketData() {
       const markets = (await findAllMarkets(program)).perpMarkets
       setPerpMarkets(markets);
     } catch (fetchError) {
-      console.log(new Error("Perp accounts does not exist." + fetchError));
+      // console.log(new Error("Perp accounts does not exist." + fetchError));
     }
   };
 

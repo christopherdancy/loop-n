@@ -1,14 +1,11 @@
 'use client';
 
 import React from 'react';
-import { 
-  PRICE_PRECISION,
-  formatTokenAmount, 
-} from '../drift/drift-exports';
-
 import { UserAccount } from '../drift/types';
 import { PairedOrders, getOpenOrdersForUserAccount } from '../drift/utils/order-utils';
 import { getMarketConfigByIndex } from '../drift/utils/perp-utils';
+import { formatTokenAmount } from '../drift/utils/math-utils';
+import { PRICE_PRECISION } from '../drift/utils/constants';
 
 // todo: status needs to be tracked via backend (sol )
 // todo: do not allow duplicate positions

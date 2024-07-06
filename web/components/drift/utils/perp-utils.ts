@@ -21,7 +21,7 @@ export async function findAllMarkets(program: Program): Promise<{
   
 	  return { perpMarkets };
 	} catch (error) {
-	  console.error('Error fetching perpMarket accounts:', error);
+	  // console.error('Error fetching perpMarket accounts:', error);
 	  throw error; // rethrow the error after logging it
 	}
   }

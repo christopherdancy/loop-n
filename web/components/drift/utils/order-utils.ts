@@ -107,7 +107,6 @@ function isEqual(obj1: any, obj2: any): boolean {
 
   // Function to create dumy paired orders
 export function createPairedOrders(prevOrders: PairedOrders[], marketIndex: number, baseAssetAmount: BN, price: number): PairedOrders {
-	console.log(baseAssetAmount.toString())
 	const lastOrderId = prevOrders.length > 0 ? prevOrders[prevOrders.length - 1].openOrder.orderId : 0;
 	const newOrderId = lastOrderId + 1;
   

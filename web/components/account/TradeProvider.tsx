@@ -74,6 +74,12 @@ interface TradeData {
     const { perpMarkets, fees } = useDriftProgramMarketData();
     const [market, setMarket] = useState<PerpMarketAccount>();
     const [tradeData, setTradeData] = useState<TradeData | undefined>();
+    const [isClient, setIsClient] = useState(false);
+
+    useEffect(() => {
+      setIsClient(true); // Ensure the component is marked as client-side after the first render
+  }, []);
+
     useEffect(() => {
       // todo: find out why this is being set incorrectly
       // if (perpMarkets && fees) {
@@ -92,6 +98,11 @@ interface TradeData {
       }
 
   }, [selectedToken, perpMarkets, fees, minPortfolioValue, tokenAmount, isDemo]);
+
+  if (!isClient) {
+    // Render a placeholder or nothing while waiting for client-side rendering
+    return null;
+  }
   
     return (
       <TradeContext.Provider value={{ market, tradeData, estimatedWorth, selectedToken, minPortfolioValue, tokenAmount }}>

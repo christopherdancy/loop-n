@@ -6,17 +6,17 @@ import { UserAccount } from "../drift/types";
 import { CreateHedgeButton } from "./Hedge/CreateHedgeButton";
 import { HedgeDetails } from "./Hedge/HedgeDetails";
 import { TokenSelector } from "./Hedge/TokenSelector";
-import { TradeProvider } from "./TradeProvider";
+import { TradeProvider, useTradeContext } from "./TradeProvider";
 import { UserWalletBalance } from "./Hedge/UserWalletBalance";
 import { useGetPythPrices } from "./pyth-data";
 import { UserPositions } from "./UserPositions";
 import { PairedOrders } from "../drift/utils/order-utils";
+import { CoverageFees } from "./Hedge/CoverageFees";
 
 export function PortfolioHedge({ address }: { address: PublicKey | undefined }) {
     const [selectedToken, setSelectedToken] = useState(SupportedTokens[0]);
     const [tokenAmount, setTokenAmount] = useState('');
     const [minPortfolioValue, setMinPortfolioValue] = useState('');
-    const [isExpanded, setIsExpanded] = useState(false);
     const [solBalance, setSolBalance] = useState(0);
     const [userData, setUserData] = useState<UserAccount>();
     const [isDemo, setIsDemo] = useState(true);
@@ -56,6 +56,7 @@ export function PortfolioHedge({ address }: { address: PublicKey | undefined }) 
         const newOrders = prevOrders.concat(pair);
         return newOrders;
       });
+      setTokenAmount('')
     };
   
     function handleCancelDemoOrder(orderId: number) {
@@ -71,10 +72,6 @@ export function PortfolioHedge({ address }: { address: PublicKey | undefined }) 
         const price = parseFloat(priceData.price) * 10 ** priceData.expo;
         return parseFloat(tokenAmount) * price;
     }, [prices, tokenAmount, selectedToken]);
-  
-    const toggleExpanded = () => {
-      setIsExpanded(!isExpanded);
-    };
   
   
     // Adjust minPortfolioValue if it exceeds estimatedWorth
@@ -142,21 +139,10 @@ export function PortfolioHedge({ address }: { address: PublicKey | undefined }) 
             <span>{calculateCoverage(minPortfolioValue, estimatedWorth)}<span className='text-sm text-gray-500'>% of current value</span></span>
           </div>
         </div>
-        <div className="bg-gray-50 p-4 rounded-2xl font-mono mb-4">
-        <div className="flex justify-between items-center mb-2 pl-1">
-          <span>Coverage Fees</span>
-          <span>$350.29</span>
-        </div>
-        <div className="flex justify-between items-center text-gray-400 pl-1">
-          <button onClick={toggleExpanded} className="text-blue-500 text-sm text-center focus:outline-none">
-            {isExpanded ? 'Hide Details' : 'Details'}
-          </button>
-        </div>
-        {isExpanded && <HedgeDetails solBalance={solBalance} userData={userData}/>}
-      </div>
+        <CoverageFees solBalance={solBalance} userData={userData} />
         <CreateHedgeButton address={address} isDemo={isDemo} demoOrders={demoOrders} handleCreateDemoOrder={handleCreateDemoOrder}/>
       </div>
-        <UserPositions userData={userData} demoOrders={demoOrders} handleCancelDemoOrder={handleCancelDemoOrder}/>
+        {demoOrders.length > 0 && <UserPositions userData={userData} demoOrders={demoOrders} handleCancelDemoOrder={handleCancelDemoOrder}/>}
       </TradeProvider>
     );
   };

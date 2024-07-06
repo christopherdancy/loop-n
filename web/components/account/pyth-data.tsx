@@ -3,7 +3,7 @@
 import { PriceServiceConnection, PriceFeed } from '@pythnetwork/price-service-client';
 import { useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState, useEffect } from 'react';
-import { SupportedTokens } from '../drift/drift-exports';
+import { SupportedTokens } from '../drift/utils/perp-utils';
 
 type PriceData = {
   conf: string;
