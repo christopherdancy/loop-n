@@ -9,6 +9,8 @@ import { TokenSelector } from "./Hedge/TokenSelector";
 import { TradeProvider } from "./TradeProvider";
 import { UserWalletBalance } from "./Hedge/UserWalletBalance";
 import { useGetPythPrices } from "./pyth-data";
+import { UserPositions } from "./UserPositions";
+import { PairedOrders } from "../drift/utils/order-utils";
 
 export function PortfolioHedge({ address }: { address: PublicKey | undefined }) {
     const [selectedToken, setSelectedToken] = useState(SupportedTokens[0]);
@@ -17,6 +19,8 @@ export function PortfolioHedge({ address }: { address: PublicKey | undefined }) 
     const [isExpanded, setIsExpanded] = useState(false);
     const [solBalance, setSolBalance] = useState(0);
     const [userData, setUserData] = useState<UserAccount>();
+    const [isDemo, setIsDemo] = useState(true);
+    const [demoOrders, setDemoOrders] = useState<PairedOrders[]>([]);
     const { data: prices } = useGetPythPrices();
     
     const handleTokenChange = (e: { target: { value: any; }; }) => {
@@ -46,7 +50,19 @@ export function PortfolioHedge({ address }: { address: PublicKey | undefined }) 
         setMinPortfolioValue(`$${value}`)
       }
     };
+
+    const handleCreateDemoOrder = (pair: PairedOrders) => {
+      setDemoOrders((prevOrders) => {
+        const newOrders = prevOrders.concat(pair);
+        return newOrders;
+      });
+    };
   
+    function handleCancelDemoOrder(orderId: number) {
+      const newOrders = demoOrders.filter(order => order.openOrder.orderId !== orderId);
+      setDemoOrders(newOrders)
+    }
+    
     // Calculate the estimated worth using useMemo
     const estimatedWorth = useMemo(() => {
         if (!prices || !tokenAmount) return 0;
@@ -68,16 +84,27 @@ export function PortfolioHedge({ address }: { address: PublicKey | undefined }) 
         setMinPortfolioValue('');
       }
     }, [estimatedWorth, minPortfolioValue]);
+
   
     // proper logic for account fees without market or inputs + reorg
     // account fees for account creation is .02 but I am unsure where this is coming from
     // update collateral information usdc + solona fee
     // indicate what fee (denom) it is in
     return (
-      <TradeProvider selectedToken={selectedToken} minPortfolioValue={minPortfolioValue} tokenAmount={tokenAmount} estimatedWorth={estimatedWorth}>
+      <TradeProvider selectedToken={selectedToken} minPortfolioValue={minPortfolioValue} tokenAmount={tokenAmount} estimatedWorth={estimatedWorth} isDemo>
       <div className="max-w-md mx-auto bg-white p-8 rounded-3xl shadow-md">
-        <div className='text-left py-4 text-xl text-bold font-mono'>
-        <span>Portfolio Coverage</span>
+        <div className='flex justify-between items-center text-left py-4 text-xl text-bold font-mono'>
+            <span>Portfolio Coverage</span>
+            <label className="flex items-center space-x-2">
+              <span className="text-sm">Demo</span>
+              <input 
+                type="checkbox" 
+                checked={isDemo}
+                readOnly
+                // onChange={(e) => setIsDemo(e.target.checked)} 
+                className="form-checkbox"
+              />
+            </label>
         </div>
         <div className="bg-gray-50 rounded-2xl p-4 mb-4 font-mono">
           <div className="flex justify-between items-left mb-2 pl-1">
@@ -127,8 +154,9 @@ export function PortfolioHedge({ address }: { address: PublicKey | undefined }) 
         </div>
         {isExpanded && <HedgeDetails solBalance={solBalance} userData={userData}/>}
       </div>
-         <CreateHedgeButton address={address}/>
+        <CreateHedgeButton address={address} isDemo={isDemo} demoOrders={demoOrders} handleCreateDemoOrder={handleCreateDemoOrder}/>
       </div>
+        <UserPositions userData={userData} demoOrders={demoOrders} handleCancelDemoOrder={handleCancelDemoOrder}/>
       </TradeProvider>
     );
   };

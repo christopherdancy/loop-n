@@ -440,10 +440,6 @@ return userPosition.baseAssetAmount.gte(ZERO)
 	: PositionDirection.SHORT;
 }
 
-export function getMarketConfigByIndex(marketIndex : BN): (PerpMarketConfig | undefined) {
-return PerpMarketConfigs.find(config => config.marketIndex === marketIndex);
-}
-
 
 // Helper Utils for calculation
 function calculateWorstCaseBaseAssetAmount(

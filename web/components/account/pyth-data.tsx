@@ -37,7 +37,7 @@ export function useGetPythPrices() {
 
     const intervalId = setInterval(() => {
       fetchPrices();
-    }, 15000); // Poll every 30 seconds
+    }, 115000); // Poll every 30 seconds
 
     // Clean up the interval when the component unmounts
     return () => clearInterval(intervalId);

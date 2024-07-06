@@ -49,3 +49,9 @@ export function clampBN(x: BN, min: BN, max: BN): BN {
 export const sigNum = (x: BN): BN => {
 	return x.isNeg() ? new BN(-1) : new BN(1);
 };
+
+// Function to convert a decimal amount to a scaled integer
+export const toScaledInteger = (amount: string, decimals: number): number => {
+  const factor = Math.pow(10, decimals);
+  return Math.floor(parseFloat(amount) * factor);
+};

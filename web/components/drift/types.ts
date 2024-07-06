@@ -341,6 +341,8 @@ export type PerpPosition = {
     oracleSource: OracleSource;
     logoURI: string;
     pythId: string;
+    marginRatioInitial: number,
+		marginRatioMaintenance: number,
   };
 
 export type FeeStructure = {

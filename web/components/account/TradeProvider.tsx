@@ -5,6 +5,8 @@ import { calculateCollateralRequirements, calculateLimitOrderPrice, calculateLiq
 import * as anchor from '@coral-xyz/anchor';
 import { FeeTier, PerpMarketAccount, PerpMarketConfig } from "../drift/types";
 import { calculateTakerFee } from "../drift/utils/state-utils";
+import { createDummyMarket } from "../drift/utils/perp-utils";
+import { toScaledInteger } from "../drift/utils/math-utils";
 
 interface TradeData {
     leverage: string;
@@ -47,7 +49,7 @@ interface TradeData {
       stopLossPrice: liquidationPriceShort.stopLossPrice,
       liquidationPrice: `$${liquidationPriceShort.liqPrice.toFixed(2)}`,
       collateral: collateralRequirements.initialCollateral,
-      txFee: `${calculateTakerFee(limitOrderPrice, new anchor.BN(tokenAmount).mul(BASE_PRECISION), fees.tradeFees)}`,
+      txFee: `${calculateTakerFee(limitOrderPrice, (new anchor.BN(toScaledInteger(tokenAmount, 9))), fees.tradeFees)}`,
       initAccountFee: `${fees.initUserFee.eq(0) ? ".01 SOL" : fees.initUserFee.toString()}`,
       rentExempt: fees.rentExemptBalance,
       rent: fees.rentFee
@@ -60,28 +62,36 @@ interface TradeData {
     estimatedWorth,
     minPortfolioValue,
     tokenAmount,
+    isDemo
   }: {
     children: React.ReactNode;
     selectedToken: PerpMarketConfig;
     estimatedWorth: number;
     minPortfolioValue: string;
     tokenAmount: string;
+    isDemo: boolean;
   }) {
     const { perpMarkets, fees } = useDriftProgramMarketData();
     const [market, setMarket] = useState<PerpMarketAccount>();
     const [tradeData, setTradeData] = useState<TradeData | undefined>();
-  
     useEffect(() => {
-      if (perpMarkets && fees) {
-        const foundMarket = perpMarkets.find((market) => market.marketIndex === selectedToken.marketIndex);
-        if (foundMarket) {
-          setMarket(foundMarket);
-          const calculatedDetails = calculateAllDetails(foundMarket, minPortfolioValue, tokenAmount, fees);
-          setTradeData(calculatedDetails);
-        }
+      // todo: find out why this is being set incorrectly
+      // if (perpMarkets && fees) {
+        // const foundMarket = perpMarkets.find((market) => market.marketIndex === selectedToken.marketIndex);
+        // if (foundMarket) {
+        //     setMarket(foundMarket);
+        //     const calculatedDetails = calculateAllDetails(foundMarket, minPortfolioValue, tokenAmount, fees);
+        //     setTradeData(calculatedDetails);
+        // }
+      // } else 
+      if (isDemo && fees) {
+        const dummyMarket = createDummyMarket(selectedToken.marketIndex, selectedToken.baseAssetSymbol, selectedToken.marginRatioInitial, selectedToken.marginRatioMaintenance);
+        setMarket(dummyMarket);
+        const calculatedDetails = calculateAllDetails(dummyMarket, minPortfolioValue, tokenAmount, fees);
+        setTradeData(calculatedDetails);
       }
 
-    }, [selectedToken, perpMarkets, minPortfolioValue, tokenAmount]);
+  }, [selectedToken, perpMarkets, fees, minPortfolioValue, tokenAmount, isDemo]);
   
     return (
       <TradeContext.Provider value={{ market, tradeData, estimatedWorth, selectedToken, minPortfolioValue, tokenAmount }}>

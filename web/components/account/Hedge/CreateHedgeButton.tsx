@@ -4,11 +4,17 @@ import { BASE_PRECISION } from "../../drift/utils/constants";
 import { useTradeContext } from "../TradeProvider";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import * as anchor from '@coral-xyz/anchor';
+import { PairedOrders, createPairedOrders } from "@/components/drift/utils/order-utils";
+import { toScaledInteger } from "@/components/drift/utils/math-utils";
 
 
-export function CreateHedgeButton({ address }: {address?: PublicKey}) {
+export function CreateHedgeButton(
+  { address, isDemo, demoOrders, handleCreateDemoOrder }: 
+  { address?: PublicKey, isDemo: boolean, demoOrders: PairedOrders[], handleCreateDemoOrder: (pair: PairedOrders ) => void }
+){
     const { tradeData, selectedToken, tokenAmount, minPortfolioValue } = useTradeContext();
-    const { loopnHedgeMutation } = useDriftProgramAccount(address);
+    // const { loopnHedgeMutation } = useDriftProgramAccount(address);
+
     return (
       <>
       {
@@ -23,15 +29,24 @@ export function CreateHedgeButton({ address }: {address?: PublicKey}) {
         :
           <button
             className="btn btn-primary w-full text-white font-mono"
-            onClick={() =>
-              loopnHedgeMutation.mutate({
-                usdcDeposit: tradeData.collateral,
-                baseAssetAmount: new anchor.BN(tokenAmount).mul(BASE_PRECISION),
-                marketIndex: selectedToken.marketIndex,
-                price: tradeData.strikePrice,
-                stopLossPrice: tradeData.stopLossPrice,
-                simulate: true,
-              })
+            onClick={(isDemo) ?  
+              () => handleCreateDemoOrder(createPairedOrders(
+                demoOrders, 
+                selectedToken.marketIndex, 
+                (new anchor.BN(toScaledInteger(tokenAmount, 9))), 
+                tradeData.strikePrice
+              )) :
+              () => {}
+              // :
+              // () =>
+              // loopnHedgeMutation.mutate({
+              //   usdcDeposit: tradeData.collateral,
+              //   baseAssetAmount: new anchor.BN(tokenAmount).mul(BASE_PRECISION),
+              //   marketIndex: selectedToken.marketIndex,
+              //   price: tradeData.strikePrice,
+              //   stopLossPrice: tradeData.stopLossPrice,
+              //   simulate: true,
+              // })
             }
           >
             Cover Losses
