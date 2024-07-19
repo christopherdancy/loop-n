@@ -2,15 +2,13 @@ import { PublicKey } from "@solana/web3.js";
 import { useState, useMemo, useEffect } from "react";
 import { SupportedTokens } from "../drift/utils/perp-utils";
 import { calculateCoverage } from "../drift/utils/hedge-utils";
-import { UserAccount } from "../drift/types";
 import { CreateHedgeButton } from "./Hedge/CreateHedgeButton";
-import { HedgeDetails } from "./Hedge/HedgeDetails";
 import { TokenSelector } from "./Hedge/TokenSelector";
 import { TradeProvider, useTradeContext } from "./TradeProvider";
 import { UserWalletBalance } from "./Hedge/UserWalletBalance";
 import { useGetPythPrices } from "./pyth-data";
 import { UserPositions } from "./UserPositions";
-import { PairedOrders } from "../drift/utils/order-utils";
+import { ProtectedPosition } from "../drift/utils/order-utils";
 import { CoverageFees } from "./Hedge/CoverageFees";
 
 export function PortfolioHedge({ address }: { address: PublicKey | undefined }) {
@@ -19,7 +17,7 @@ export function PortfolioHedge({ address }: { address: PublicKey | undefined }) 
     const [minPortfolioValue, setMinPortfolioValue] = useState('');
     const [solBalance, setSolBalance] = useState(0);
     const [isDemo, setIsDemo] = useState(true);
-    const [demoOrders, setDemoOrders] = useState<PairedOrders[]>([]);
+    const [demoOrders, setDemoOrders] = useState<ProtectedPosition[]>([]);
     const { data: prices } = useGetPythPrices();
     
     const handleTokenChange = (e: { target: { value: any; }; }) => {
@@ -50,16 +48,16 @@ export function PortfolioHedge({ address }: { address: PublicKey | undefined }) 
       }
     };
 
-    const handleCreateDemoOrder = (pair: PairedOrders) => {
-      setDemoOrders((prevOrders) => {
-        const newOrders = prevOrders.concat(pair);
-        return newOrders;
+    const handleCreateDemoOrder = (position: ProtectedPosition) => {
+      setDemoOrders((prevPos) => {
+        const newPos = prevPos.concat(position);
+        return newPos;
       });
       setTokenAmount('')
     };
   
     function handleCancelDemoOrder(orderId: number) {
-      const newOrders = demoOrders.filter(order => order.openOrder.orderId !== orderId);
+      const newOrders = demoOrders.filter(pos => pos.id !== orderId);
       setDemoOrders(newOrders)
     }
     
