@@ -363,6 +363,40 @@ export type FeeTier = {
 	refereeFeeDenominator: number;
 };
 
+export type UserStatsAccount = {
+	numberOfSubAccounts: number;
+	numberOfSubAccountsCreated: number;
+	makerVolume30D: BN;
+	takerVolume30D: BN;
+	fillerVolume30D: BN;
+	lastMakerVolume30DTs: BN;
+	lastTakerVolume30DTs: BN;
+	lastFillerVolume30DTs: BN;
+	fees: {
+		totalFeePaid: BN;
+		totalFeeRebate: BN;
+		totalTokenDiscount: BN;
+		totalRefereeDiscount: BN;
+		totalReferrerReward: BN;
+		current_epoch_referrer_reward: BN;
+	};
+	referrer: PublicKey;
+	isReferrer: boolean;
+	authority: PublicKey;
+	ifStakedQuoteAssetAmount: BN;
+
+	lastFuelIfBonusUpdateTs: number; // u32 onchain
+
+	fuelInsurance: number;
+	fuelDeposits: number;
+	fuelBorrows: number;
+	fuelPositions: number;
+	fuelTaker: number;
+	fuelMaker: number;
+
+	ifStakedGovTokenAmount: BN;
+};
+
 export type UserAccount = {
     authority: PublicKey;
     delegate: PublicKey;

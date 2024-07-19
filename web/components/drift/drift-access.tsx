@@ -34,7 +34,7 @@ import { useCluster } from '../cluster/cluster-data-access';
 import { useAnchorProvider } from '../solana/solana-provider';
 import { useTransactionToast } from '../ui/ui-layout';
 import DriftIDL from './idl.json'
-import { FeeTier, MarketType, OrderTriggerCondition, PerpMarketAccount, PositionDirection, StateAccount, UserAccount } from './types';
+import { FeeTier, MarketType, OrderTriggerCondition, PerpMarketAccount, PositionDirection, StateAccount, UserAccount, UserStatsAccount } from './types';
 import { useGetUSDCAccount } from '../account/account-data-access';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -113,6 +113,44 @@ export function useDriftProgramMarketData() {
   };
 }
 
+export function useDriftUserData(account?: PublicKey) {
+  const { 
+    program,
+    connection
+   } = useDriftProgram();
+    const [subAccountData, setSubAccountData] = useState<UserAccount[] | undefined>(undefined);
+
+    const fetchSubAccountData = async () => {
+      if (!account) return;
+      try {
+        const userStatsPublicKey = getUserStatsAccountPublicKey(program.programId, account)
+        const userStatsData = await program.account.userStats.fetch(userStatsPublicKey) as UserStatsAccount;
+        let userSubAccounts: UserAccount[] = [];
+        for (let i = 0; i < userStatsData.numberOfSubAccountsCreated; i++) {
+          const subAccount = await getUserAccountPublicKey(program.programId, account, i);
+          const subAccountData = await program.account.user.fetch(subAccount) as UserAccount;
+          userSubAccounts.push(subAccountData);
+        }
+        
+        setSubAccountData(userSubAccounts);
+      } catch (fetchError) {
+        console.error("User account does not exist.")
+        setSubAccountData(undefined);
+      } finally {
+      }
+    };
+
+
+  useEffect(() => {
+    fetchSubAccountData();
+  }, [program.programId, account]);
+  
+
+  return {
+    subAccountData,
+  };
+}
+
 export function useDriftProgramAccount(account?: PublicKey) {
   const transactionToast = useTransactionToast();
   const { 
@@ -129,11 +167,13 @@ export function useDriftProgramAccount(account?: PublicKey) {
   const [userAccount, setUserAccount] = useState<UserAccount | undefined>(undefined);
   const [, setIsLoadingPublicKeys] = useState(true);
   const [isLoadingUserAccount, setIsLoadingUserAccount] = useState(true);
-
+  
   const fetchPublicKeys = async () => {
     if (!account) return;
     setIsLoadingPublicKeys(true);
     try {
+      // user account public key should be based on new subaccount
+      // retreive next subaccountID
       setUserPublicKey(await getUserAccountPublicKey(program.programId, account, 0));
       setUserStatsPublicKey(getUserStatsAccountPublicKey(program.programId, account))
       setStatePublicKey(await getDriftStateAccountPublicKey(program.programId));
@@ -190,6 +230,7 @@ export function useDriftProgramAccount(account?: PublicKey) {
       const hedgeIx = await createHedgeIx(program, statePublicKey, vaultPublicKey, userPublicKey, userStatsPublicKey, account, baseAssetAmount, marketIndex, price);
       const stopLossIx = await createStopLossIx(program, statePublicKey, vaultPublicKey, userPublicKey, userStatsPublicKey, account, baseAssetAmount, marketIndex, price, stopLossPrice);
       let tx;
+      // this will need to init a new userIX
       if (!userAccount) {
         tx = new Transaction()
           .add(initializeUserStatsIx)
@@ -221,56 +262,52 @@ export function useDriftProgramAccount(account?: PublicKey) {
 
     onSuccess: (txSig) => {
       transactionToast(txSig);
-      fetchUserAccount()
     },
     onError: (error) => {
       console.error("Failed to initialize user and stats:", error);
     },
   });
   
-  const cancelOrderMutation = useMutation({
-    mutationKey: ['drift', 'closeHedge', { cluster, account }],
-    mutationFn: async ({ orderId, simulate }:{ orderId: number, simulate: boolean } ) => {
-      if (!account) {
-        throw new Error("Account is not connected.");
-      };
+  // const cancelOrderMutation = useMutation({
+  //   mutationKey: ['drift', 'closeHedge', { cluster, account }],
+  //   mutationFn: async ({ orderId, simulate }:{ orderId: number, simulate: boolean } ) => {
+  //     if (!account) {
+  //       throw new Error("Account is not connected.");
+  //     };
 
-      if (!userPublicKey || !statePublicKey || !userStatsPublicKey) {
-        throw new Error("Public keys are not ready.");
-      }
-      const cancelIx = await createCancelOrderIx(program, statePublicKey, userPublicKey, account, orderId);
+  //     if (!userPublicKey || !statePublicKey || !userStatsPublicKey) {
+  //       throw new Error("Public keys are not ready.");
+  //     }
+  //     const cancelIx = await createCancelOrderIx(program, statePublicKey, userPublicKey, account, orderId);
       
-      const tx = new Transaction()
-          .add(cancelIx);
+  //     const tx = new Transaction()
+  //         .add(cancelIx);
 
-      tx.feePayer = provider.wallet.publicKey;
-      if (simulate) {
-        const simulationResult = await connection.simulateTransaction(tx);
-        if (simulationResult.value.err) {
-          console.log("Simulation error:", simulationResult.value.logs);
-        } else {
-          console.log(simulationResult);
-        }
-      } else {
-        const txSig = await provider.sendAndConfirm(tx);
-        return txSig;
-      }
-      return "simulate"
-    },
-    onSuccess: (txSig) => {
-      transactionToast(txSig);
-    },
-    onError: (error) => {
-      console.error("Failed to deposit funds:", error);
-    },
-  });
+  //     tx.feePayer = provider.wallet.publicKey;
+  //     if (simulate) {
+  //       const simulationResult = await connection.simulateTransaction(tx);
+  //       if (simulationResult.value.err) {
+  //         console.log("Simulation error:", simulationResult.value.logs);
+  //       } else {
+  //         console.log(simulationResult);
+  //       }
+  //     } else {
+  //       const txSig = await provider.sendAndConfirm(tx);
+  //       return txSig;
+  //     }
+  //     return "simulate"
+  //   },
+  //   onSuccess: (txSig) => {
+  //     transactionToast(txSig);
+  //   },
+  //   onError: (error) => {
+  //     console.error("Failed to deposit funds:", error);
+  //   },
+  // });
 
   return {
     loopnHedgeMutation,
-    cancelOrderMutation,
-    userAccount,
-    isLoadingUserAccount,
-    userPublicKey
+    // cancelOrderMutation,
   };
 }
 

@@ -1,28 +1,35 @@
 'use client';
 
 import React from 'react';
-import { UserAccount } from '../drift/types';
-import { PairedOrders, getOpenOrdersForUserAccount } from '../drift/utils/order-utils';
+import { ProtectedPosition, getProtectedPositions } from '../drift/utils/order-utils';
 import { getMarketConfigByIndex } from '../drift/utils/perp-utils';
 import { formatTokenAmount } from '../drift/utils/math-utils';
 import { PRICE_PRECISION } from '../drift/utils/constants';
+import { useDriftUserData } from '../drift/drift-access';
+import { PublicKey } from '@solana/web3.js';
+
+// todo steps:
+// create a new subaccount per hedge
+
 
 // todo: status needs to be tracked via backend (sol )
 // todo: do not allow duplicate positions
 export function UserPositions(
-  { userData, 
+  {
+    address,
     demoOrders,
     handleCancelDemoOrder, 
   }: { 
-    userData: UserAccount | undefined, 
-    demoOrders: PairedOrders[],
+    address?: PublicKey,
+    demoOrders: ProtectedPosition[],
     handleCancelDemoOrder: ((orderId: number) => void), 
   }) {
+    const { subAccountData } = useDriftUserData(address);
+
   // todo: handle proper sizing  
   // todo: handle status updates for orders
   // todo: handle live order cancels
-  const pendingOrders: PairedOrders[] = demoOrders.length > 0 ? demoOrders : getOpenOrdersForUserAccount(userData)
-  // const positions: PerpPosition[] = getActivePerpPositionsForUserAccount(userAccount)
+  const protectedPositions:  ProtectedPosition[] = demoOrders.length > 0 ? demoOrders : getProtectedPositions(subAccountData)
   return (
     <div className="space-y-2 mt-8">
       <div className="flex justify-between">
@@ -30,7 +37,7 @@ export function UserPositions(
       </div>
         <div>
           <div>
-            {pendingOrders?.length === 0 ? (
+            {protectedPositions?.length === 0 ? (
               <div>No protected positions found.</div>
             ) : (
               <table className="table border-4 rounded-lg border-separate border-base-300">
@@ -44,14 +51,15 @@ export function UserPositions(
                   </tr>
                 </thead>
                 <tbody>
-                  {pendingOrders?.map((pair) => {
-                    const baseAssetSymbol = getMarketConfigByIndex(pair.openOrder.marketIndex).baseAssetSymbol;
-                    const logo = getMarketConfigByIndex(pair.openOrder.marketIndex).logoURI;
-                    const strikePrice = `$${formatTokenAmount(pair.openOrder.price, 6)}`
-                    const protectedValued = `$${formatTokenAmount(pair.openOrder.baseAssetAmount.mul(pair.openOrder.price).div(PRICE_PRECISION), 9)}`
+                  {protectedPositions?.map((position) => {
+                    const baseAssetSymbol = getMarketConfigByIndex(position.marketIndex).baseAssetSymbol;
+                    const logo = getMarketConfigByIndex(position.marketIndex).logoURI;
+                    console.log(position)
+                    const strikePrice = `$${formatTokenAmount(position.price, 6)}`
+                    const protectedValued = `$${formatTokenAmount(position.baseAssetAmount.mul(position.price).div(PRICE_PRECISION), 9)}`
 
                     return (
-                      <tr key={pair.openOrder.orderId}>
+                      <tr key={position.id}>
                         <td className="font-mono">
                         <div className="flex flex-row gap-1 items-center">
                           <img src={logo} alt={baseAssetSymbol} className="w-6 h-6" />
@@ -65,10 +73,10 @@ export function UserPositions(
                           <span className="font-bold text-lg">{strikePrice}</span>
                         </td>
                         <td className="font-mono">
-                          <span className="font-bold text-lg">Pending</span>
+                          <span className="font-bold text-lg">{position.status}</span>
                         </td>
                         <td className="text-right">
-                          <button className="font-bold text-blue-500" onClick={() => handleCancelDemoOrder(pair.openOrder.orderId)}>Cancel</button>
+                          <button className="font-bold text-blue-500" onClick={() => handleCancelDemoOrder(position.id)}>Cancel</button>
                         </td>
                       </tr>
                     );

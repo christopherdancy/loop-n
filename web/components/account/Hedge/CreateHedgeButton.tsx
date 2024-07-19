@@ -1,16 +1,15 @@
 import { PublicKey } from "@solana/web3.js";
-import { useDriftProgramAccount } from "../../drift/drift-access";
-import { BASE_PRECISION } from "../../drift/utils/constants";
+// import { useDriftProgramAccount } from "../../drift/drift-access";
 import { useTradeContext } from "../TradeProvider";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import * as anchor from '@coral-xyz/anchor';
-import { PairedOrders, createPairedOrders } from "@/components/drift/utils/order-utils";
+import { ProtectedPosition, createProtectedPosition } from "@/components/drift/utils/order-utils";
 import { toScaledInteger } from "@/components/drift/utils/math-utils";
 
 
 export function CreateHedgeButton(
   { address, isDemo, demoOrders, handleCreateDemoOrder }: 
-  { address?: PublicKey, isDemo: boolean, demoOrders: PairedOrders[], handleCreateDemoOrder: (pair: PairedOrders ) => void }
+  { address?: PublicKey, isDemo: boolean, demoOrders: ProtectedPosition[], handleCreateDemoOrder: (position: ProtectedPosition ) => void }
 ){
     const { tradeData, selectedToken, tokenAmount, minPortfolioValue } = useTradeContext();
     // const { loopnHedgeMutation } = useDriftProgramAccount(address);
@@ -30,11 +29,12 @@ export function CreateHedgeButton(
           <button
             className="btn btn-primary w-full text-white font-mono"
             onClick={(isDemo) ?  
-              () => handleCreateDemoOrder(createPairedOrders(
-                demoOrders, 
+              () => handleCreateDemoOrder(createProtectedPosition(
                 selectedToken.marketIndex, 
                 (new anchor.BN(toScaledInteger(tokenAmount, 9))), 
-                tradeData.strikePrice
+                tradeData.strikePrice,
+                "pending",
+                demoOrders.length > 0 ? demoOrders[demoOrders.length - 1].id : 0,
               )) :
               () => {}
               // :

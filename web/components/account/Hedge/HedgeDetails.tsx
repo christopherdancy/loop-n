@@ -10,7 +10,7 @@ const InfoRow = ({ label, value }: {label:string, value: string | number}) => (
     </div>
   );
   
-export function HedgeDetails({solBalance, userData}: {solBalance: number, userData: UserAccount | undefined}) {
+export function HedgeDetails({solBalance}: {solBalance: number}) {
     const { tradeData, estimatedWorth, selectedToken, minPortfolioValue} = useTradeContext();
     return (
       <div className="text-xs text-gray-500 mt-4 pl-1">
@@ -39,10 +39,7 @@ export function HedgeDetails({solBalance, userData}: {solBalance: number, userDa
             </div>
             <InfoRow label="Collateral" value={`$${tradeData.collateral.toFixed(2)}`} />
             <InfoRow label="Tx fee" value={tradeData.txFee} />
-            {
-              !userData &&
               <InfoRow label="Init Account Fee" value={tradeData.initAccountFee} />
-            }
             {solBalance < tradeData.rentExempt && (
             <InfoRow
               label="Solana Rent Fee"

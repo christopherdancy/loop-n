@@ -18,7 +18,6 @@ export function PortfolioHedge({ address }: { address: PublicKey | undefined }) 
     const [tokenAmount, setTokenAmount] = useState('');
     const [minPortfolioValue, setMinPortfolioValue] = useState('');
     const [solBalance, setSolBalance] = useState(0);
-    const [userData, setUserData] = useState<UserAccount>();
     const [isDemo, setIsDemo] = useState(true);
     const [demoOrders, setDemoOrders] = useState<PairedOrders[]>([]);
     const { data: prices } = useGetPythPrices();
@@ -106,7 +105,7 @@ export function PortfolioHedge({ address }: { address: PublicKey | undefined }) 
         <div className="bg-gray-50 rounded-2xl p-4 mb-4 font-mono">
           <div className="flex justify-between items-left mb-2 pl-1">
             <span>HODL Position</span>
-            {address && <UserWalletBalance address={address} selectedToken={selectedToken} setTokenAmount={setTokenAmount} setSolBalance={setSolBalance} setUserData={setUserData}></UserWalletBalance>}
+            {address && <UserWalletBalance address={address} selectedToken={selectedToken} setTokenAmount={setTokenAmount} setSolBalance={setSolBalance}></UserWalletBalance>}
           </div>
           <div className="py-2 grid grid-cols-3 gap-4 items-center">
             <input
@@ -139,10 +138,10 @@ export function PortfolioHedge({ address }: { address: PublicKey | undefined }) 
             <span>{calculateCoverage(minPortfolioValue, estimatedWorth)}<span className='text-sm text-gray-500'>% of current value</span></span>
           </div>
         </div>
-        <CoverageFees solBalance={solBalance} userData={userData} />
+        <CoverageFees solBalance={solBalance} />
         <CreateHedgeButton address={address} isDemo={isDemo} demoOrders={demoOrders} handleCreateDemoOrder={handleCreateDemoOrder}/>
       </div>
-        {demoOrders.length > 0 && <UserPositions userData={userData} demoOrders={demoOrders} handleCancelDemoOrder={handleCancelDemoOrder}/>}
+        {demoOrders.length > 0 && <UserPositions address={address} demoOrders={demoOrders} handleCancelDemoOrder={handleCancelDemoOrder}/>}
       </TradeProvider>
     );
   };

@@ -3,7 +3,7 @@ import { useTradeContext } from "../TradeProvider";
 import { useState } from "react";
 import { HedgeDetails } from "./HedgeDetails";
   
-export function CoverageFees({solBalance, userData}: {solBalance: number, userData: UserAccount | undefined}) {
+export function CoverageFees({solBalance}: {solBalance: number}) {
   const [isExpanded, setIsExpanded] = useState(false);
 
   const toggleExpanded = () => {
@@ -24,7 +24,7 @@ export function CoverageFees({solBalance, userData}: {solBalance: number, userDa
             {isExpanded ? 'Hide Details' : 'Details'}
           </button>
         </div>
-        {isExpanded && <HedgeDetails solBalance={solBalance} userData={userData}/>}
+        {isExpanded && <HedgeDetails solBalance={solBalance}/>}
       </div>
     );
 }

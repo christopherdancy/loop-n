@@ -1,13 +1,21 @@
 import { BN } from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
 import { useState, useMemo, useEffect } from "react";
-import { useDriftProgramAccount } from "../../drift/drift-access";
 import { formatTokenAmount } from "../../drift/utils/math-utils";
-import { PerpMarketConfig, UserAccount } from "../../drift/types";
+import { PerpMarketConfig } from "../../drift/types";
 import { useGetTokenAccounts, useGetBalance } from "../account-data-access";
 
-export function UserWalletBalance({ address, selectedToken, setTokenAmount, setSolBalance, setUserData }: { address: PublicKey, selectedToken: PerpMarketConfig, setTokenAmount: (walletBalance: string) => void, setSolBalance: (solBalance: number) => void, setUserData: (account: UserAccount) => void} ) {
-    const { userAccount } = useDriftProgramAccount(address);
+export function UserWalletBalance(
+  { address, 
+    selectedToken, 
+    setTokenAmount, 
+    setSolBalance, 
+  }: { 
+    address: PublicKey, 
+    selectedToken: PerpMarketConfig, 
+    setTokenAmount: (walletBalance: string) => void, 
+    setSolBalance: (solBalance: number) => void, 
+  } ) {
     const [walletBalance, setWalletBalance] = useState('')
     const tokenQuery = useGetTokenAccounts({ address });
     const solQuery = useGetBalance({ address });
@@ -64,12 +72,7 @@ export function UserWalletBalance({ address, selectedToken, setTokenAmount, setS
       }
         
     }, [selectedToken, tokenItems]);
-  
-    useEffect(() => {
-      if (userAccount) {
-        setUserData(userAccount);
-      }
-    }, [userAccount]);
+
   
     return (
       <div className='text-sm'>
