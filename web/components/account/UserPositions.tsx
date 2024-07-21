@@ -40,23 +40,22 @@ export function UserPositions(
             {protectedPositions?.length === 0 ? (
               <div>No protected positions found.</div>
             ) : (
-              <table className="table border-4 rounded-lg border-separate border-base-300">
+              <table className="table border-2 rounded-xl border-base-300">
                 <thead>
                   <tr>
                     <th>Market</th>
-                    <th className="">Value Protected</th>
-                    <th className="">Strike Price</th>
-                    <th className="">Status</th>
-                    <th className="">Close</th>
+                    <th className="">Protected size</th>
+                    <th className="">Executes @</th>
+                    <th className="">Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {protectedPositions?.map((position) => {
                     const baseAssetSymbol = getMarketConfigByIndex(position.marketIndex).baseAssetSymbol;
                     const logo = getMarketConfigByIndex(position.marketIndex).logoURI;
-                    console.log(position)
                     const strikePrice = `$${formatTokenAmount(position.price, 6)}`
                     const protectedValued = `$${formatTokenAmount(position.baseAssetAmount.mul(position.price).div(PRICE_PRECISION), 9)}`
+                    // todo: short price when activated
 
                     return (
                       <tr key={position.id}>
@@ -67,16 +66,19 @@ export function UserPositions(
                           </div>
                         </td>
                         <td className="font-mono">
-                          <span className="font-bold text-lg">{protectedValued}</span>
+                          <div className="flex flex-col">
+                            <span className="font-bold text-lg">{formatTokenAmount(position.baseAssetAmount, 9)}</span>
+                            <span className="text-sm text-gray-500">{protectedValued}</span>
+                          </div>
                         </td>
                         <td className="font-mono">
-                          <span className="font-bold text-lg">{strikePrice}</span>
+                          <div className="flex flex-col">
+                            <span className="font-bold text-lg">{strikePrice}</span>
+                            <span className="text-sm text-gray-500">{position.status}</span>
+                          </div>
                         </td>
                         <td className="font-mono">
-                          <span className="font-bold text-lg">{position.status}</span>
-                        </td>
-                        <td className="text-right">
-                          <button className="font-bold text-blue-500" onClick={() => handleCancelDemoOrder(position.id)}>Cancel</button>
+                          <button className="font-bold text-blue-500" onClick={() => handleCancelDemoOrder(position.id)}>CLOSE</button>
                         </td>
                       </tr>
                     );

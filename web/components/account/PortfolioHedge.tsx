@@ -86,7 +86,7 @@ export function PortfolioHedge({ address }: { address: PublicKey | undefined }) 
     // indicate what fee (denom) it is in
     return (
       <TradeProvider selectedToken={selectedToken} minPortfolioValue={minPortfolioValue} tokenAmount={tokenAmount} estimatedWorth={estimatedWorth} isDemo>
-      <div className="max-w-md mx-auto bg-white p-8 rounded-3xl shadow-md">
+      <div className="max-w-lg mx-auto bg-white p-8 rounded-3xl shadow-md">
         <div className='flex justify-between items-center text-left py-4 text-xl text-bold font-mono'>
             <span>Portfolio Coverage</span>
             <label className="flex items-center space-x-2">
