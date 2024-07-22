@@ -52,8 +52,10 @@ export type ProtectedPosition = {
 	marketIndex: number,
 	baseAssetAmount: BN,
 	price: BN,
-	id: number,
-	status: string
+	openId: number,
+	closeId: number,
+	status: string,
+	subAccountId: number
 }
 
 // todo: manage paired orders + statuses via database / smart contract
@@ -70,14 +72,14 @@ export function getProtectedPositions(userSubAccounts?: UserAccount[]): Protecte
 		});
 
         // Extracting into its own function
-        protectedPositions = protectedPositions.concat(getProtectedOrders(openOrders));
-        protectedPositions = protectedPositions.concat(getProtectedPositionsFromPositions(openOrders, openPositions));
+        protectedPositions = protectedPositions.concat(getProtectedOrders(openOrders, i));
+        protectedPositions = protectedPositions.concat(getProtectedPositionsFromPositions(openOrders, openPositions, i));
     }
 
     return protectedPositions;
 }
 
-function getProtectedOrders(openOrders: Order[]): ProtectedPosition[] {
+function getProtectedOrders(openOrders: Order[], subAccountId: number): ProtectedPosition[] {
     let protectedPositions: ProtectedPosition[] = [];
 
     openOrders.forEach((order) => {
@@ -93,8 +95,10 @@ function getProtectedOrders(openOrders: Order[]): ProtectedPosition[] {
 					marketIndex: order.marketIndex,
 					baseAssetAmount: order.baseAssetAmount,
 					price: order.price,
-					id: order.orderId,
-					status: 'pending'
+					openId: order.orderId,
+					closeId: closeOrder.orderId,
+					status: 'pending',
+					subAccountId
 				})
 			}
 		}
@@ -103,7 +107,7 @@ function getProtectedOrders(openOrders: Order[]): ProtectedPosition[] {
     return protectedPositions;
 }
 
-function getProtectedPositionsFromPositions(openOrders: Order[], openPositions: PerpPosition[]): ProtectedPosition[] {
+function getProtectedPositionsFromPositions(openOrders: Order[], openPositions: PerpPosition[], subAccountId: number): ProtectedPosition[] {
     let protectedPositions: ProtectedPosition[] = [];
 
     openPositions.forEach((position) => {
@@ -118,8 +122,10 @@ function getProtectedPositionsFromPositions(openOrders: Order[], openPositions: 
 				marketIndex: position.marketIndex,
 				baseAssetAmount: position.baseAssetAmount.neg(),
 				price: calculateEntryPrice(position),
-				id: 0, // position closed via opposite trade
-				status: 'active'
+				openId: 0, // position closed via opposite trade
+				closeId: closeOrder.orderId,
+				status: 'active',
+				subAccountId
 			})
 		}
 })
@@ -178,7 +184,9 @@ export function createProtectedPosition(
 		marketIndex: marketIndex,
 		baseAssetAmount: baseAssetAmount,
 		price: new BN(price).mul(PRICE_PRECISION),
-		id: id,
-		status: status
+		openId: id,
+		closeId: id + 1,
+		status: status,
+		subAccountId: 0
 	}
 }

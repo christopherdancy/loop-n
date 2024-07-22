@@ -57,7 +57,7 @@ export function PortfolioHedge({ address }: { address: PublicKey | undefined }) 
     };
   
     function handleCancelDemoOrder(orderId: number) {
-      const newOrders = demoOrders.filter(pos => pos.id !== orderId);
+      const newOrders = demoOrders.filter(pos => pos.openId !== orderId);
       setDemoOrders(newOrders)
     }
     
@@ -139,7 +139,7 @@ export function PortfolioHedge({ address }: { address: PublicKey | undefined }) 
         <CoverageFees solBalance={solBalance} />
         <CreateHedgeButton address={address} isDemo={isDemo} demoOrders={demoOrders} handleCreateDemoOrder={handleCreateDemoOrder}/>
       </div>
-        {demoOrders.length > 0 && <UserPositions address={address} demoOrders={demoOrders} handleCancelDemoOrder={handleCancelDemoOrder}/>}
+        { <UserPositions address={address} demoOrders={demoOrders} handleCancelDemoOrder={handleCancelDemoOrder}/>}
       </TradeProvider>
     );
   };

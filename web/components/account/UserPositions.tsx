@@ -5,7 +5,7 @@ import { ProtectedPosition, getProtectedPositions } from '../drift/utils/order-u
 import { getMarketConfigByIndex } from '../drift/utils/perp-utils';
 import { formatTokenAmount } from '../drift/utils/math-utils';
 import { PRICE_PRECISION } from '../drift/utils/constants';
-import { useDriftUserData } from '../drift/drift-access';
+import { useDriftProgramAccount, useDriftUserData } from '../drift/drift-access';
 import { PublicKey } from '@solana/web3.js';
 
 // todo steps:
@@ -25,11 +25,13 @@ export function UserPositions(
     handleCancelDemoOrder: ((orderId: number) => void), 
   }) {
     const { subAccountData } = useDriftUserData(address);
+    const { cancelOrderMutation } = useDriftProgramAccount(address);
 
   // todo: handle proper sizing  
   // todo: handle status updates for orders
   // todo: handle live order cancels
-  const protectedPositions:  ProtectedPosition[] = demoOrders.length > 0 ? demoOrders : getProtectedPositions(subAccountData)
+  // const protectedPositions:  ProtectedPosition[] = demoOrders.length > 0 ? demoOrders : getProtectedPositions(subAccountData)
+  const protectedPositions:  ProtectedPosition[] = getProtectedPositions(subAccountData)
   return (
     <div className="space-y-2 mt-8">
       <div className="flex justify-between">
@@ -58,7 +60,7 @@ export function UserPositions(
                     // todo: short price when activated
 
                     return (
-                      <tr key={position.id}>
+                      <tr key={position.openId}>
                         <td className="font-mono">
                         <div className="flex flex-row gap-1 items-center">
                           <img src={logo} alt={baseAssetSymbol} className="w-6 h-6" />
@@ -78,7 +80,17 @@ export function UserPositions(
                           </div>
                         </td>
                         <td className="font-mono">
-                          <button className="font-bold text-blue-500" onClick={() => handleCancelDemoOrder(position.id)}>CLOSE</button>
+                          <button className="font-bold text-blue-500" onClick={
+                            demoOrders.length > 0 ?  
+                            () => handleCancelDemoOrder(position.openId) :
+                            () =>
+                              cancelOrderMutation.mutate({
+                                openId: position.openId,
+                                closeId: position.closeId,
+                                subAccountId: position.subAccountId,
+                                simulate: true,
+                              })
+                          }>CLOSE</button>
                         </td>
                       </tr>
                     );

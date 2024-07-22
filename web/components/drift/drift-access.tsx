@@ -26,7 +26,7 @@ import { getOrderParams, getTriggerLimitOrderParams } from './utils/order-utils'
 import { Program } from '@coral-xyz/anchor';
 import * as anchor from '@coral-xyz/anchor';
 import { useConnection } from '@solana/wallet-adapter-react';
-import { Cluster, PublicKey, Transaction } from '@solana/web3.js';
+import { Cluster, Connection, PublicKey, Transaction } from '@solana/web3.js';
 import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
@@ -35,7 +35,7 @@ import { useAnchorProvider } from '../solana/solana-provider';
 import { useTransactionToast } from '../ui/ui-layout';
 import DriftIDL from './idl.json'
 import { FeeTier, MarketType, OrderTriggerCondition, PerpMarketAccount, PositionDirection, StateAccount, UserAccount, UserStatsAccount } from './types';
-import { useGetUSDCAccount } from '../account/account-data-access';
+import { getUSDCAccount } from '../account/account-data-access';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export function useDriftProgram() {
@@ -115,8 +115,7 @@ export function useDriftProgramMarketData() {
 
 export function useDriftUserData(account?: PublicKey) {
   const { 
-    program,
-    connection
+    program
    } = useDriftProgram();
     const [subAccountData, setSubAccountData] = useState<UserAccount[] | undefined>(undefined);
 
@@ -159,23 +158,25 @@ export function useDriftProgramAccount(account?: PublicKey) {
     cluster, 
     connection
    } = useDriftProgram();
-  const [userPublicKey, setUserPublicKey] = useState<PublicKey | undefined>(undefined);
   const [userStatsPublicKey, setUserStatsPublicKey] = useState<PublicKey | undefined>(undefined);
+  const [userPublicKey, setUserPublicKey] = useState<PublicKey | undefined>(undefined);
   const [statePublicKey, setStatePublicKey] = useState<PublicKey | undefined>(undefined);
   const [vaultPublicKey, setVaultPublicKey] = useState<PublicKey | undefined>(undefined);
-  const [signerPublicKey, setSignerPublicKey] = useState<PublicKey | undefined>(undefined);
-  const [userAccount, setUserAccount] = useState<UserAccount | undefined>(undefined);
+  const [subAccountId, setSubAccountId] = useState(0);
   const [, setIsLoadingPublicKeys] = useState(true);
+  const [signerPublicKey, setSignerPublicKey] = useState<PublicKey | undefined>(undefined);
   const [isLoadingUserAccount, setIsLoadingUserAccount] = useState(true);
   
   const fetchPublicKeys = async () => {
     if (!account) return;
     setIsLoadingPublicKeys(true);
     try {
-      // user account public key should be based on new subaccount
-      // retreive next subaccountID
-      setUserPublicKey(await getUserAccountPublicKey(program.programId, account, 0));
-      setUserStatsPublicKey(getUserStatsAccountPublicKey(program.programId, account))
+      const userStatsPublicKey = getUserStatsAccountPublicKey(program.programId, account)
+      setUserStatsPublicKey(userStatsPublicKey)
+      const subAccountId = (await program.account.userStats.fetch(userStatsPublicKey) as UserStatsAccount).numberOfSubAccounts;
+      setSubAccountId(subAccountId)
+      // user account public key should be based on new subAccount
+      setUserPublicKey(await getUserAccountPublicKey(program.programId, account, subAccountId));
       setStatePublicKey(await getDriftStateAccountPublicKey(program.programId));
       setVaultPublicKey(await getSpotMarketVaultPublicKey(program.programId, 0));
       setSignerPublicKey(await getDriftSignerPublicKey(program.programId));
@@ -186,28 +187,11 @@ export function useDriftProgramAccount(account?: PublicKey) {
       setIsLoadingPublicKeys(false);
     }
   };
-  
-
-  const fetchUserAccount = async () => {
-    if (!account) return;
-    setIsLoadingUserAccount(true);
-    try {
-      const user = await getUserAccountPublicKey(program.programId, account, 0);
-      const userAccountData = await program.account.user.fetch(user) as UserAccount;
-      setUserAccount(userAccountData);
-    } catch (fetchError) {
-      console.error("User account does not exist.")
-      setUserAccount(undefined);
-    } finally {
-      setIsLoadingUserAccount(false);
-    }
-  };
 
 
   useEffect(() => {
     if (account) {
       fetchPublicKeys();
-      fetchUserAccount();
     }
   }, [program.programId, account]);
   
@@ -223,29 +207,24 @@ export function useDriftProgramAccount(account?: PublicKey) {
       if (!userPublicKey || !statePublicKey || !userStatsPublicKey) {
         throw new Error("Public keys are not ready.");
       }
-  
       const initializeUserStatsIx = await createInitializeUserStatsIx(program, statePublicKey, userStatsPublicKey, account);
-      const initializeUserIx = await createInitializeUserIx(program, statePublicKey, userPublicKey, userStatsPublicKey, account);
-      const depositIx = await createDepositIx(program, statePublicKey, vaultPublicKey, userPublicKey, userStatsPublicKey, account, usdcDeposit);
+      const initializeUserIx = await createInitializeUserIx(program, statePublicKey, userPublicKey, userStatsPublicKey, account, subAccountId);
+      const depositIx = await createDepositIx(program, statePublicKey, vaultPublicKey, userPublicKey, userStatsPublicKey, account, usdcDeposit, connection);
       const hedgeIx = await createHedgeIx(program, statePublicKey, vaultPublicKey, userPublicKey, userStatsPublicKey, account, baseAssetAmount, marketIndex, price);
       const stopLossIx = await createStopLossIx(program, statePublicKey, vaultPublicKey, userPublicKey, userStatsPublicKey, account, baseAssetAmount, marketIndex, price, stopLossPrice);
-      let tx;
-      // this will need to init a new userIX
-      if (!userAccount) {
-        tx = new Transaction()
-          .add(initializeUserStatsIx)
-          .add(initializeUserIx)
-          .add(depositIx)
-          .add(hedgeIx);
-      } else {
-        tx = new Transaction()
-          .add(depositIx)
-          .add(hedgeIx)
-          .add(stopLossIx);
-      }
+      let tx = new Transaction();
+
+      if (subAccountId === 0 && !checkIfAccountExists(account, connection)) {
+        tx.add(initializeUserStatsIx)
+      } 
+        tx
+        .add(initializeUserIx)
+        .add(depositIx)
+        .add(hedgeIx)
+        .add(stopLossIx);
 
       tx.feePayer = provider.wallet.publicKey;
-      if (simulate) {
+      if (false) {
         const simulationResult = await connection.simulateTransaction(tx);
         if (simulationResult.value.err) {
           console.log("Simulation error:", simulationResult.value.logs);
@@ -268,46 +247,51 @@ export function useDriftProgramAccount(account?: PublicKey) {
     },
   });
   
-  // const cancelOrderMutation = useMutation({
-  //   mutationKey: ['drift', 'closeHedge', { cluster, account }],
-  //   mutationFn: async ({ orderId, simulate }:{ orderId: number, simulate: boolean } ) => {
-  //     if (!account) {
-  //       throw new Error("Account is not connected.");
-  //     };
+  // todo: return collateral(deposit) + remove all orders + return claimable rent
+  const cancelOrderMutation = useMutation({
+    mutationKey: ['drift', 'cancelOrder', { cluster, account }],
+    mutationFn: async ({ openId, closeId, subAccountId, simulate }:{ openId: number, closeId: number, subAccountId: number, simulate: boolean } ) => {
+      if (!account) {
+        throw new Error("Account is not connected.");
+      };
+      // reinit userpubkey with proper subaccountId
+      const userPublicKey = await getUserAccountPublicKey(program.programId, account, subAccountId)
 
-  //     if (!userPublicKey || !statePublicKey || !userStatsPublicKey) {
-  //       throw new Error("Public keys are not ready.");
-  //     }
-  //     const cancelIx = await createCancelOrderIx(program, statePublicKey, userPublicKey, account, orderId);
+      if (!userPublicKey || !statePublicKey || !userStatsPublicKey) {
+        throw new Error("Public keys are not ready.");
+      }
+      const cancelOpenIx = await createCancelOrderIx(program, statePublicKey, userPublicKey, account, openId);
+      const cancelCloseIx = await createCancelOrderIx(program, statePublicKey, userPublicKey, account, closeId);
       
-  //     const tx = new Transaction()
-  //         .add(cancelIx);
+      const tx = new Transaction()
+          .add(cancelOpenIx)
+          .add(cancelCloseIx);
 
-  //     tx.feePayer = provider.wallet.publicKey;
-  //     if (simulate) {
-  //       const simulationResult = await connection.simulateTransaction(tx);
-  //       if (simulationResult.value.err) {
-  //         console.log("Simulation error:", simulationResult.value.logs);
-  //       } else {
-  //         console.log(simulationResult);
-  //       }
-  //     } else {
-  //       const txSig = await provider.sendAndConfirm(tx);
-  //       return txSig;
-  //     }
-  //     return "simulate"
-  //   },
-  //   onSuccess: (txSig) => {
-  //     transactionToast(txSig);
-  //   },
-  //   onError: (error) => {
-  //     console.error("Failed to deposit funds:", error);
-  //   },
-  // });
+      tx.feePayer = provider.wallet.publicKey;
+      if (false) {
+        const simulationResult = await connection.simulateTransaction(tx);
+        if (simulationResult.value.err) {
+          console.log("Simulation error:", simulationResult.value.logs);
+        } else {
+          console.log(simulationResult);
+        }
+      } else {
+        const txSig = await provider.sendAndConfirm(tx);
+        return txSig;
+      }
+      return "simulate"
+    },
+    onSuccess: (txSig) => {
+      transactionToast(txSig);
+    },
+    onError: (error) => {
+      console.error("Failed to cancel order:", error);
+    },
+  });
 
   return {
     loopnHedgeMutation,
-    // cancelOrderMutation,
+    cancelOrderMutation,
   };
 }
 
@@ -324,10 +308,10 @@ const createInitializeUserStatsIx = async (program: Program<any>, statePublicKey
     .instruction();
 };
 
-const createInitializeUserIx = async (program: Program<any>, statePublicKey: anchor.web3.PublicKey, userPublicKey: anchor.web3.PublicKey, userStatsPublicKey: anchor.web3.PublicKey, account: anchor.web3.PublicKey) => {
+const createInitializeUserIx = async (program: Program<any>, statePublicKey: anchor.web3.PublicKey, userPublicKey: anchor.web3.PublicKey, userStatsPublicKey: anchor.web3.PublicKey, account: anchor.web3.PublicKey, id: number) => {
   return await program.methods.initializeUser(
-    0, // subAccountId
-    encodeName(DEFAULT_USER_NAME) // userName
+    id, // subAccountId
+    encodeName(`subaccount:${id}`) // userName
   )
     .accounts({
       user: userPublicKey,
@@ -341,8 +325,8 @@ const createInitializeUserIx = async (program: Program<any>, statePublicKey: anc
     .instruction();
 };
 
-const createDepositIx = async (program: Program<any>, statePublicKey: anchor.web3.PublicKey, vaultPublicKey: anchor.web3.PublicKey | undefined, userPublicKey: anchor.web3.PublicKey, userStatsPublicKey: anchor.web3.PublicKey, account: anchor.web3.PublicKey, usdcDeposit: number) => {
-  const userUSDCAccount = useGetUSDCAccount(userPublicKey).data
+const createDepositIx = async (program: Program<any>, statePublicKey: anchor.web3.PublicKey, vaultPublicKey: anchor.web3.PublicKey | undefined, userPublicKey: anchor.web3.PublicKey, userStatsPublicKey: anchor.web3.PublicKey, account: anchor.web3.PublicKey, usdcDeposit: number, connection: Connection) => {
+  const userUSDCAccount = await getUSDCAccount(connection, account)
   return await program.methods.deposit(
     "0", // 0 usdc, 1 sol
     convertUSDCtoSmallestUnit(usdcDeposit), // setup conversion
@@ -358,12 +342,16 @@ const createDepositIx = async (program: Program<any>, statePublicKey: anchor.web
       tokenProgram: TOKEN_PROGRAM_ID,
     })
     .remainingAccounts([
-      { pubkey: new PublicKey("Gnt27xtC473ZT2Mw5u8wZ68Z3gULkSTb5DuxJy7eJotD"), isWritable: false, isSigner: false },
-      { pubkey: new PublicKey("E4v1BBgoso9s64TQvmyownAVJbhbEPGyzA3qn4n46qj9"), isWritable: false, isSigner: false },
-      { pubkey: new PublicKey("H6ARHf6YXhGYeQfUzQNGk6rDNnLBQKrenN712K4AQJEG"), isWritable: false, isSigner: false },
+      { pubkey: new PublicKey("5SSkXsEKQepHHAewytPVwdej4epN1nxgLVM84L4KXgy7"), isWritable: false, isSigner: false },
+      { pubkey: new PublicKey("J83w4HKfqxwcq3BEMMkPFSppX3gqekLyLJBexebFVkix"), isWritable: false, isSigner: false },
+      { pubkey: new PublicKey("6bEp2MiyoiiiDxcVqE8rUHQWwHirXUXtKfAEATTVqNzT"), isWritable: false, isSigner: false },
+      { pubkey: new PublicKey("Gwvob7yoLMgQRVWjScCRyQFMsgpRKrSAYisYEyjDJwEp"), isWritable: true, isSigner: false },
+      { pubkey: new PublicKey("BAtFj4kQttZRVep3UZS2aZRDixkGYgWsbqTBVDbnSsPF"), isWritable: false, isSigner: false },
       { pubkey: new PublicKey("6gMq3mRCKf8aP3ttTyYhuijVZ2LGi14oDsBbkgubfLB3"), isWritable: true, isSigner: false },
-      { pubkey: new PublicKey("Mr2XZwj1NisUur3WZWdERdqnEUMoa9F9pUr52vqHyqj"), isWritable: false, isSigner: false },
-      { pubkey: new PublicKey("8UJgxaiQx5nTrdDgph5FiahMmzduuLTLf5WmsPegYA6W"), isWritable: false, isSigner: false },
+      { pubkey: new PublicKey("3x85u7SWkmmr7YQGYhtjARgxwegTLJgkSLRprfXod6rh"), isWritable: true, isSigner: false },
+      { pubkey: new PublicKey("25Eax9W8SA3wpCQFhJEGyHhQ2NDHEshZEDzyMNtthR8D"), isWritable: true, isSigner: false },
+      { pubkey: new PublicKey("3a7HAEqxzwvJEAViYKhDtHk85mrFf1dU2HCsffgXxUj8"), isWritable: true, isSigner: false },
+      { pubkey: new PublicKey("8UJgxaiQx5nTrdDgph5FiahMmzduuLTLf5WmsPegYA6W"), isWritable: true, isSigner: false },
     ])
     .instruction();
 };
@@ -392,11 +380,15 @@ const createHedgeIx = async (program: Program<any>, statePublicKey: anchor.web3.
       authority: account,
     })
     .remainingAccounts([
-      { pubkey: new PublicKey("Gnt27xtC473ZT2Mw5u8wZ68Z3gULkSTb5DuxJy7eJotD"), isWritable: false, isSigner: false },
-      { pubkey: new PublicKey("E4v1BBgoso9s64TQvmyownAVJbhbEPGyzA3qn4n46qj9"), isWritable: false, isSigner: false },
-      { pubkey: new PublicKey("H6ARHf6YXhGYeQfUzQNGk6rDNnLBQKrenN712K4AQJEG"), isWritable: false, isSigner: false },
-      { pubkey: new PublicKey("6gMq3mRCKf8aP3ttTyYhuijVZ2LGi14oDsBbkgubfLB3"), isWritable: false, isSigner: false },
-      { pubkey: new PublicKey("Mr2XZwj1NisUur3WZWdERdqnEUMoa9F9pUr52vqHyqj"), isWritable: false, isSigner: false },
+      { pubkey: new PublicKey("5SSkXsEKQepHHAewytPVwdej4epN1nxgLVM84L4KXgy7"), isWritable: false, isSigner: false },
+      { pubkey: new PublicKey("J83w4HKfqxwcq3BEMMkPFSppX3gqekLyLJBexebFVkix"), isWritable: false, isSigner: false },
+      { pubkey: new PublicKey("6bEp2MiyoiiiDxcVqE8rUHQWwHirXUXtKfAEATTVqNzT"), isWritable: false, isSigner: false },
+      { pubkey: new PublicKey("Gwvob7yoLMgQRVWjScCRyQFMsgpRKrSAYisYEyjDJwEp"), isWritable: false, isSigner: false },
+      { pubkey: new PublicKey("BAtFj4kQttZRVep3UZS2aZRDixkGYgWsbqTBVDbnSsPF"), isWritable: false, isSigner: false },
+      { pubkey: new PublicKey("6gMq3mRCKf8aP3ttTyYhuijVZ2LGi14oDsBbkgubfLB3"), isWritable: true, isSigner: false },
+      { pubkey: new PublicKey("3x85u7SWkmmr7YQGYhtjARgxwegTLJgkSLRprfXod6rh"), isWritable: true, isSigner: false },
+      { pubkey: new PublicKey("25Eax9W8SA3wpCQFhJEGyHhQ2NDHEshZEDzyMNtthR8D"), isWritable: true, isSigner: false },
+      { pubkey: new PublicKey("3a7HAEqxzwvJEAViYKhDtHk85mrFf1dU2HCsffgXxUj8"), isWritable: true, isSigner: false },
       { pubkey: new PublicKey("8UJgxaiQx5nTrdDgph5FiahMmzduuLTLf5WmsPegYA6W"), isWritable: true, isSigner: false },
     ])
     .instruction();
@@ -426,11 +418,15 @@ const createStopLossIx = async (program: Program<any>, statePublicKey: anchor.we
       authority: account,
     })
     .remainingAccounts([
-      { pubkey: new PublicKey("Gnt27xtC473ZT2Mw5u8wZ68Z3gULkSTb5DuxJy7eJotD"), isWritable: false, isSigner: false },
-      { pubkey: new PublicKey("E4v1BBgoso9s64TQvmyownAVJbhbEPGyzA3qn4n46qj9"), isWritable: false, isSigner: false },
-      { pubkey: new PublicKey("H6ARHf6YXhGYeQfUzQNGk6rDNnLBQKrenN712K4AQJEG"), isWritable: false, isSigner: false },
-      { pubkey: new PublicKey("6gMq3mRCKf8aP3ttTyYhuijVZ2LGi14oDsBbkgubfLB3"), isWritable: false, isSigner: false },
-      { pubkey: new PublicKey("Mr2XZwj1NisUur3WZWdERdqnEUMoa9F9pUr52vqHyqj"), isWritable: false, isSigner: false },
+      { pubkey: new PublicKey("5SSkXsEKQepHHAewytPVwdej4epN1nxgLVM84L4KXgy7"), isWritable: false, isSigner: false },
+      { pubkey: new PublicKey("J83w4HKfqxwcq3BEMMkPFSppX3gqekLyLJBexebFVkix"), isWritable: false, isSigner: false },
+      { pubkey: new PublicKey("6bEp2MiyoiiiDxcVqE8rUHQWwHirXUXtKfAEATTVqNzT"), isWritable: false, isSigner: false },
+      { pubkey: new PublicKey("Gwvob7yoLMgQRVWjScCRyQFMsgpRKrSAYisYEyjDJwEp"), isWritable: false, isSigner: false },
+      { pubkey: new PublicKey("BAtFj4kQttZRVep3UZS2aZRDixkGYgWsbqTBVDbnSsPF"), isWritable: false, isSigner: false },
+      { pubkey: new PublicKey("6gMq3mRCKf8aP3ttTyYhuijVZ2LGi14oDsBbkgubfLB3"), isWritable: true, isSigner: false },
+      { pubkey: new PublicKey("3x85u7SWkmmr7YQGYhtjARgxwegTLJgkSLRprfXod6rh"), isWritable: true, isSigner: false },
+      { pubkey: new PublicKey("25Eax9W8SA3wpCQFhJEGyHhQ2NDHEshZEDzyMNtthR8D"), isWritable: true, isSigner: false },
+      { pubkey: new PublicKey("3a7HAEqxzwvJEAViYKhDtHk85mrFf1dU2HCsffgXxUj8"), isWritable: true, isSigner: false },
       { pubkey: new PublicKey("8UJgxaiQx5nTrdDgph5FiahMmzduuLTLf5WmsPegYA6W"), isWritable: true, isSigner: false },
     ])
     .instruction();
@@ -448,8 +444,9 @@ const createCancelOrderIx = async (program: Program<any>, statePublicKey: anchor
     .remainingAccounts([
       { pubkey: new PublicKey("5SSkXsEKQepHHAewytPVwdej4epN1nxgLVM84L4KXgy7"), isWritable: false, isSigner: false },
       { pubkey: new PublicKey("J83w4HKfqxwcq3BEMMkPFSppX3gqekLyLJBexebFVkix"), isWritable: false, isSigner: false },
-      { pubkey: new PublicKey("HNStfhaLnqwF2ZtJUizaA9uHDAVB976r2AgTUx9LrdEo"), isWritable: false, isSigner: false },
-      { pubkey: new PublicKey("9sGidS4qUXS2WvHZFhzw4df1jNd5TvUGZXZVsSjXo7UF"), isWritable: false, isSigner: false },
+      { pubkey: new PublicKey("6bEp2MiyoiiiDxcVqE8rUHQWwHirXUXtKfAEATTVqNzT"), isWritable: false, isSigner: false },
+      { pubkey: new PublicKey("Gwvob7yoLMgQRVWjScCRyQFMsgpRKrSAYisYEyjDJwEp"), isWritable: false, isSigner: false },
+      { pubkey: new PublicKey("BAtFj4kQttZRVep3UZS2aZRDixkGYgWsbqTBVDbnSsPF"), isWritable: false, isSigner: false },
       { pubkey: new PublicKey("6gMq3mRCKf8aP3ttTyYhuijVZ2LGi14oDsBbkgubfLB3"), isWritable: false, isSigner: false },
       { pubkey: new PublicKey("3x85u7SWkmmr7YQGYhtjARgxwegTLJgkSLRprfXod6rh"), isWritable: false, isSigner: false },
       { pubkey: new PublicKey("25Eax9W8SA3wpCQFhJEGyHhQ2NDHEshZEDzyMNtthR8D"), isWritable: false, isSigner: false },
@@ -458,4 +455,14 @@ const createCancelOrderIx = async (program: Program<any>, statePublicKey: anchor
     ])
     .instruction();
 };
+
+const  checkIfAccountExists = async (account: PublicKey, connection: Connection): Promise<boolean> => {
+  try {
+    const accountInfo = await connection.getAccountInfo(account);
+    return accountInfo != null;
+  } catch (e) {
+    // Doesn't already exist
+    return false;
+  }
+}
 

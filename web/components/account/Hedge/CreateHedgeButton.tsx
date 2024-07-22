@@ -1,10 +1,11 @@
 import { PublicKey } from "@solana/web3.js";
-// import { useDriftProgramAccount } from "../../drift/drift-access";
+import { useDriftProgramAccount } from "../../drift/drift-access";
 import { useTradeContext } from "../TradeProvider";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import * as anchor from '@coral-xyz/anchor';
 import { ProtectedPosition, createProtectedPosition } from "@/components/drift/utils/order-utils";
 import { toScaledInteger } from "@/components/drift/utils/math-utils";
+import { BASE_PRECISION } from "@/components/drift/utils/constants";
 
 
 export function CreateHedgeButton(
@@ -12,7 +13,7 @@ export function CreateHedgeButton(
   { address?: PublicKey, isDemo: boolean, demoOrders: ProtectedPosition[], handleCreateDemoOrder: (position: ProtectedPosition ) => void }
 ){
     const { tradeData, selectedToken, tokenAmount, minPortfolioValue } = useTradeContext();
-    // const { loopnHedgeMutation } = useDriftProgramAccount(address);
+    const { loopnHedgeMutation } = useDriftProgramAccount(address);
 
     return (
       <>
@@ -28,25 +29,24 @@ export function CreateHedgeButton(
         :
           <button
             className="btn btn-primary w-full text-white font-mono"
-            onClick={(isDemo) ?  
+            onClick={(false) ?  
               () => handleCreateDemoOrder(createProtectedPosition(
                 selectedToken.marketIndex, 
                 (new anchor.BN(toScaledInteger(tokenAmount, 9))), 
                 tradeData.strikePrice,
                 "pending",
-                demoOrders.length > 0 ? demoOrders[demoOrders.length - 1].id : 0,
-              )) :
-              () => {}
-              // :
-              // () =>
-              // loopnHedgeMutation.mutate({
-              //   usdcDeposit: tradeData.collateral,
-              //   baseAssetAmount: new anchor.BN(tokenAmount).mul(BASE_PRECISION),
-              //   marketIndex: selectedToken.marketIndex,
-              //   price: tradeData.strikePrice,
-              //   stopLossPrice: tradeData.stopLossPrice,
-              //   simulate: true,
-              // })
+                demoOrders.length > 0 ? demoOrders[demoOrders.length - 1].openId : 0,
+              )) 
+              :
+              () =>
+              loopnHedgeMutation.mutate({
+                usdcDeposit: tradeData.collateral,
+                baseAssetAmount: new anchor.BN(tokenAmount).mul(BASE_PRECISION),
+                marketIndex: selectedToken.marketIndex,
+                price: tradeData.strikePrice,
+                stopLossPrice: tradeData.stopLossPrice,
+                simulate: true,
+              })
             }
           >
             Cover Losses
