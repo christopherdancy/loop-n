@@ -14,7 +14,6 @@ export function CreateHedgeButton(
 ){
     const { tradeData, selectedToken, tokenAmount, minPortfolioValue } = useTradeContext();
     const { loopnHedgeMutation } = useDriftProgramAccount(address);
-
     return (
       <>
       {
@@ -35,7 +34,7 @@ export function CreateHedgeButton(
                 (new anchor.BN(toScaledInteger(tokenAmount, 9))), 
                 tradeData.strikePrice,
                 "pending",
-                demoOrders.length > 0 ? demoOrders[demoOrders.length - 1].openId : 0,
+                demoOrders.length > 0 ? demoOrders.length + 1 : 0,
               )) 
               :
               () =>

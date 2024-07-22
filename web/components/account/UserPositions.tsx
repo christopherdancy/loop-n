@@ -9,7 +9,7 @@ import { useDriftProgramAccount, useDriftUserData } from '../drift/drift-access'
 import { PublicKey } from '@solana/web3.js';
 
 
-// todo: status needs to be tracked via backend (sol )
+// todo: status needs to be tracked via backend (sol)
 // todo: do not allow duplicate positions
 export function UserPositions(
   {
@@ -26,9 +26,7 @@ export function UserPositions(
     const { subAccountData } = useDriftUserData(address);
     const { cancelOrderMutation } = useDriftProgramAccount(address);
 
-  // todo: handle proper sizing  
   // todo: handle status updates for orders
-  // todo: handle live order cancels
   const protectedPositions:  ProtectedPosition[] = isDemo ? demoOrders : getProtectedPositions(subAccountData)
   return (
     <div className="space-y-2 mt-8">
@@ -55,7 +53,7 @@ export function UserPositions(
                     const logo = getMarketConfigByIndex(position.marketIndex).logoURI;
                     const strikePrice = `$${formatTokenAmount(position.price, 6)}`
                     const protectedValued = `$${formatTokenAmount(position.baseAssetAmount.mul(position.price).div(PRICE_PRECISION), 9)}`
-                    // todo: short price when activated
+                    // todo: when status updates to active -- show stop limit order details
 
                     return (
                       <tr key={position.openId}>

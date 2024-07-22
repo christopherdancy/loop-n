@@ -16,7 +16,7 @@ export function PortfolioHedge({ address }: { address: PublicKey | undefined }) 
     const [tokenAmount, setTokenAmount] = useState('');
     const [minPortfolioValue, setMinPortfolioValue] = useState('');
     const [solBalance, setSolBalance] = useState(0);
-    const [isDemo, setIsDemo] = useState(false);
+    const [isDemo, setIsDemo] = useState(true);
     const [demoOrders, setDemoOrders] = useState<ProtectedPosition[]>([]);
     const { data: prices } = useGetPythPrices();
     
