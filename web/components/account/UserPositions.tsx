@@ -8,19 +8,18 @@ import { PRICE_PRECISION } from '../drift/utils/constants';
 import { useDriftProgramAccount, useDriftUserData } from '../drift/drift-access';
 import { PublicKey } from '@solana/web3.js';
 
-// todo steps:
-// create a new subaccount per hedge
-
 
 // todo: status needs to be tracked via backend (sol )
 // todo: do not allow duplicate positions
 export function UserPositions(
   {
     address,
+    isDemo,
     demoOrders,
     handleCancelDemoOrder, 
   }: { 
     address?: PublicKey,
+    isDemo: boolean,
     demoOrders: ProtectedPosition[],
     handleCancelDemoOrder: ((orderId: number) => void), 
   }) {
@@ -30,8 +29,7 @@ export function UserPositions(
   // todo: handle proper sizing  
   // todo: handle status updates for orders
   // todo: handle live order cancels
-  // const protectedPositions:  ProtectedPosition[] = demoOrders.length > 0 ? demoOrders : getProtectedPositions(subAccountData)
-  const protectedPositions:  ProtectedPosition[] = getProtectedPositions(subAccountData)
+  const protectedPositions:  ProtectedPosition[] = isDemo ? demoOrders : getProtectedPositions(subAccountData)
   return (
     <div className="space-y-2 mt-8">
       <div className="flex justify-between">

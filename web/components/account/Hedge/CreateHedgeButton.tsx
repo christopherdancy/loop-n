@@ -29,7 +29,7 @@ export function CreateHedgeButton(
         :
           <button
             className="btn btn-primary w-full text-white font-mono"
-            onClick={(false) ?  
+            onClick={isDemo ?  
               () => handleCreateDemoOrder(createProtectedPosition(
                 selectedToken.marketIndex, 
                 (new anchor.BN(toScaledInteger(tokenAmount, 9))), 

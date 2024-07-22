@@ -16,7 +16,7 @@ export function PortfolioHedge({ address }: { address: PublicKey | undefined }) 
     const [tokenAmount, setTokenAmount] = useState('');
     const [minPortfolioValue, setMinPortfolioValue] = useState('');
     const [solBalance, setSolBalance] = useState(0);
-    const [isDemo, setIsDemo] = useState(true);
+    const [isDemo, setIsDemo] = useState(false);
     const [demoOrders, setDemoOrders] = useState<ProtectedPosition[]>([]);
     const { data: prices } = useGetPythPrices();
     
@@ -95,7 +95,7 @@ export function PortfolioHedge({ address }: { address: PublicKey | undefined }) 
                 type="checkbox" 
                 checked={isDemo}
                 readOnly
-                // onChange={(e) => setIsDemo(e.target.checked)} 
+                onChange={(e) => setIsDemo(e.target.checked)} 
                 className="form-checkbox"
               />
             </label>
@@ -139,7 +139,7 @@ export function PortfolioHedge({ address }: { address: PublicKey | undefined }) 
         <CoverageFees solBalance={solBalance} />
         <CreateHedgeButton address={address} isDemo={isDemo} demoOrders={demoOrders} handleCreateDemoOrder={handleCreateDemoOrder}/>
       </div>
-        { <UserPositions address={address} demoOrders={demoOrders} handleCancelDemoOrder={handleCancelDemoOrder}/>}
+        {<UserPositions address={address} isDemo={isDemo} demoOrders={demoOrders} handleCancelDemoOrder={handleCancelDemoOrder}/>}
       </TradeProvider>
     );
   };
