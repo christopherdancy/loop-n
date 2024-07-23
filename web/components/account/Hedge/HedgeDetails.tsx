@@ -38,13 +38,14 @@ export function HedgeDetails({solBalance}: {solBalance: number}) {
             </div>
             <InfoRow label="Collateral" value={`$${tradeData.collateral.toFixed(2)}`} />
             <InfoRow label="Tx fee" value={tradeData.txFee} />
-            <InfoRow label="Init Account Fee" value={tradeData.initAccountFee} />
-            {solBalance < tradeData.rentExempt && (
-              <InfoRow
-                label="Solana Rent Fee"
-                value={formatTokenAmount(new BN(tradeData.rent), 9, 2)}
-              />
-            )} 
+            <InfoRow label="Init Account Fee" value={"0.1 SOL"} />
+            {/* <InfoRow label="Init Account Fee" value={tradeData.initAccountFee} /> */}
+            <InfoRow
+              label="Solana Rent Fee"
+              value={`${formatTokenAmount(new BN(tradeData.rent), 9, 2)} SOL`}
+            />
+            {/* {solBalance < tradeData.rentExempt && (
+            )}  */}
           </div>
        )}
       </div>

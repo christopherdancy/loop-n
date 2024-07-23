@@ -134,7 +134,12 @@ export function useDriftProgramAccount(account?: PublicKey) {
     try {
       const userStatsPublicKey = getUserStatsAccountPublicKey(program.programId, account)
       setUserStatsPublicKey(userStatsPublicKey)
-      const subAccountId = (await program.account.userStats.fetch(userStatsPublicKey) as UserStatsAccount).numberOfSubAccounts;
+      let subAccountId;
+      try {
+        subAccountId = (await program.account.userStats.fetch(userStatsPublicKey) as UserStatsAccount).numberOfSubAccounts;
+      } catch {
+        subAccountId = 0
+      }
       setSubAccountId(subAccountId)
       // user account public key should be based on new subAccount
       setUserPublicKey(await getUserAccountPublicKey(program.programId, account, subAccountId));
@@ -194,8 +199,7 @@ export function useDriftProgramAccount(account?: PublicKey) {
       const hedgeIx = await createHedgeIx(program, statePublicKey, vaultPublicKey, userPublicKey, userStatsPublicKey, account, baseAssetAmount, marketIndex, price);
       const stopLossIx = await createStopLossIx(program, statePublicKey, vaultPublicKey, userPublicKey, userStatsPublicKey, account, baseAssetAmount, marketIndex, price, stopLossPrice);
       let tx = new Transaction();
-
-      if (subAccountId === 0 && !checkIfAccountExists(account, connection)) {
+      if (subAccountId === 0 && !(await checkIfAccountExists(account, connection))) {
         tx.add(initializeUserStatsIx)
       } 
         tx
@@ -441,12 +445,11 @@ const createCancelOrderIx = async (program: Program<any>, statePublicKey: anchor
 };
 
 const  checkIfAccountExists = async (account: PublicKey, connection: Connection): Promise<boolean> => {
-  try {
     const accountInfo = await connection.getAccountInfo(account);
-    return accountInfo != null;
-  } catch (e) {
-    // Doesn't already exist
-    return false;
-  }
+
+    if (accountInfo?.owner.toBase58() === new PublicKey("11111111111111111111111111111111").toBase58()){
+      return false
+    }
+     return true
 }
 

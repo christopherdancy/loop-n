@@ -10,6 +10,7 @@ import { UserAccount } from '../drift/types';
 
 // todo: status needs to be tracked via backend (sol)
 // todo: do not allow duplicate positions
+// todo: if position is active(demo/live) - close position + cancel order
 export function UserPositions(
   {
     isDemo,
@@ -24,7 +25,6 @@ export function UserPositions(
     subAccountData: UserAccount[] | undefined,
     cancelMutation: any
   }) {
-  // todo: handle status updates for orders
   const protectedPositions:  ProtectedPosition[] = isDemo ? demoOrders : getProtectedPositions(subAccountData)
   return (
     <div className="space-y-2 mt-8">
@@ -54,7 +54,7 @@ export function UserPositions(
                     // todo: when status updates to active -- show stop limit order details
 
                     return (
-                      <tr key={position.openId}>
+                      <tr key={position.subAccountId}>
                         <td className="font-mono">
                         <div className="flex flex-row gap-1 items-center">
                           <img src={logo} alt={baseAssetSymbol} className="w-6 h-6" />
