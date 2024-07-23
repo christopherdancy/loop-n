@@ -77,7 +77,7 @@ export function UserWalletBalance(
     return (
       <div className='text-sm'>
         <span>{walletBalance} </span>
-        <button className='text-blue-500 disabled:text-slate-500' disabled={walletBalance==="0.00"} onClick={()=>setTokenAmount(walletBalance)}>MAX</button>
+        <button className='text-blue-500 disabled:text-slate-500 pr-4' disabled={walletBalance==="0.00"} onClick={()=>setTokenAmount(walletBalance)}>MAX</button>
       </div>
     );
   }

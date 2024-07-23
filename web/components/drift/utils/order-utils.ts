@@ -187,6 +187,6 @@ export function createProtectedPosition(
 		openId: id,
 		closeId: id + 1,
 		status: status,
-		subAccountId: 0
+		subAccountId: id
 	}
 }

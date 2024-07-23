@@ -17,7 +17,7 @@ export function CoverageFees({solBalance}: {solBalance: number}) {
     return (
       <div className="bg-gray-50 p-4 rounded-2xl font-mono mb-4">
         <div className="flex justify-between items-center mb-2 pl-1">
-          <span>Coverage Fees</span>
+          <span>Protection Fees</span>
           <span>${(tradeData.collateral + parseFloat(tradeData.txFee.slice(1))).toFixed(2)}</span>
         </div>
         <div className="flex justify-between items-center text-gray-400 pl-1">

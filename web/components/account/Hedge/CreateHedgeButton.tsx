@@ -46,7 +46,7 @@ export function CreateHedgeButton(
               })
             }
           >
-            Cover Losses
+            Protect Portfolio
           </button>
       }
       </>

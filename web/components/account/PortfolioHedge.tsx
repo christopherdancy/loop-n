@@ -88,7 +88,7 @@ export function PortfolioHedge({ address }: { address: PublicKey | undefined }) 
     // indicate what fee (denom) it is in
     return (
       <TradeProvider selectedToken={selectedToken} minPortfolioValue={minPortfolioValue} tokenAmount={tokenAmount} estimatedWorth={estimatedWorth} isDemo>
-      <div className="max-w-lg mx-auto bg-white p-8 rounded-3xl shadow-md">
+      <div className="max-w-md mx-auto bg-white p-8 rounded-3xl shadow-md">
         <div className='flex justify-between items-center text-left py-4 text-xl text-bold font-mono'>
             <span>Portfolio Coverage</span>
             <label className="flex items-center space-x-2">
@@ -104,7 +104,7 @@ export function PortfolioHedge({ address }: { address: PublicKey | undefined }) 
         </div>
         <div className="bg-gray-50 rounded-2xl p-4 mb-4 font-mono">
           <div className="flex justify-between items-left mb-2 pl-1">
-            <span>HODL Position</span>
+            <span>I own</span>
             {address && <UserWalletBalance address={address} selectedToken={selectedToken} setTokenAmount={setTokenAmount} setSolBalance={setSolBalance}></UserWalletBalance>}
           </div>
           <div className="py-2 grid grid-cols-3 gap-4 items-center">
@@ -123,7 +123,7 @@ export function PortfolioHedge({ address }: { address: PublicKey | undefined }) 
         </div>
         <div className="bg-gray-50 p-4 rounded-2xl mb-4 font-mono">
           <div className="flex justify-between items-left mb-2 pl-1">
-            <span>Min. HODL Value</span>
+            <span>I want to protect</span>
           </div>
           <div className="py-2 grid grid-cols-3 gap-4 items-center">
           <input
