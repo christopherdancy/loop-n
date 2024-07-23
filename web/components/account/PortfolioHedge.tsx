@@ -4,12 +4,13 @@ import { SupportedTokens } from "../drift/utils/perp-utils";
 import { calculateCoverage } from "../drift/utils/hedge-utils";
 import { CreateHedgeButton } from "./Hedge/CreateHedgeButton";
 import { TokenSelector } from "./Hedge/TokenSelector";
-import { TradeProvider, useTradeContext } from "./TradeProvider";
+import { TradeProvider } from "./TradeProvider";
 import { UserWalletBalance } from "./Hedge/UserWalletBalance";
 import { useGetPythPrices } from "./pyth-data";
 import { UserPositions } from "./UserPositions";
 import { ProtectedPosition } from "../drift/utils/order-utils";
 import { CoverageFees } from "./Hedge/CoverageFees";
+import { useDriftProgramAccount } from "../drift/drift-access";
 
 export function PortfolioHedge({ address }: { address: PublicKey | undefined }) {
     const [selectedToken, setSelectedToken] = useState(SupportedTokens[0]);
@@ -19,6 +20,7 @@ export function PortfolioHedge({ address }: { address: PublicKey | undefined }) 
     const [isDemo, setIsDemo] = useState(true);
     const [demoOrders, setDemoOrders] = useState<ProtectedPosition[]>([]);
     const { data: prices } = useGetPythPrices();
+    const { loopnHedgeMutation, subAccountData, cancelOrderMutation } = useDriftProgramAccount(address);
     
     const handleTokenChange = (e: { target: { value: any; }; }) => {
       const token = SupportedTokens.find((supportedToken) => e.target.value === supportedToken.baseAssetSymbol)
@@ -137,9 +139,9 @@ export function PortfolioHedge({ address }: { address: PublicKey | undefined }) 
           </div>
         </div>
         <CoverageFees solBalance={solBalance} />
-        <CreateHedgeButton address={address} isDemo={isDemo} demoOrders={demoOrders} handleCreateDemoOrder={handleCreateDemoOrder}/>
+        <CreateHedgeButton address={address} isDemo={isDemo} demoOrders={demoOrders} handleCreateDemoOrder={handleCreateDemoOrder} hedgeMutation={loopnHedgeMutation}/>
       </div>
-        {<UserPositions address={address} isDemo={isDemo} demoOrders={demoOrders} handleCancelDemoOrder={handleCancelDemoOrder}/>}
+        {<UserPositions isDemo={isDemo} demoOrders={demoOrders} handleCancelDemoOrder={handleCancelDemoOrder} subAccountData={subAccountData} cancelMutation={cancelOrderMutation}/>}
       </TradeProvider>
     );
   };

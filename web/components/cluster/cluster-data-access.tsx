@@ -29,17 +29,17 @@ export const defaultClusters: Cluster[] = [
     endpoint: clusterApiUrl('devnet'),
     network: ClusterNetwork.Devnet,
   },
-  {
-    name: 'mainnet-beta',
-    endpoint: 'https://mainnet.helius-rpc.com/?api-key=06f6dbec-2b66-46d3-a97c-ce5383d13df2',
-    network: ClusterNetwork.Mainnet,
-  },
-  { name: 'local', endpoint: 'http://localhost:8899' },
-  {
-    name: 'testnet',
-    endpoint: clusterApiUrl('testnet'),
-    network: ClusterNetwork.Testnet,
-  },
+  // {
+  //   name: 'mainnet-beta',
+  //   endpoint: 'https://mainnet.helius-rpc.com/?api-key=06f6dbec-2b66-46d3-a97c-ce5383d13df2',
+  //   network: ClusterNetwork.Mainnet,
+  // },
+  // { name: 'local', endpoint: 'http://localhost:8899' },
+  // {
+  //   name: 'testnet',
+  //   endpoint: clusterApiUrl('testnet'),
+  //   network: ClusterNetwork.Testnet,
+  // },
 ];
 
 const clusterAtom = atomWithStorage<Cluster>(

@@ -1,5 +1,4 @@
 import { PublicKey } from "@solana/web3.js";
-import { useDriftProgramAccount } from "../../drift/drift-access";
 import { useTradeContext } from "../TradeProvider";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import * as anchor from '@coral-xyz/anchor';
@@ -9,11 +8,10 @@ import { BASE_PRECISION } from "@/components/drift/utils/constants";
 
 
 export function CreateHedgeButton(
-  { address, isDemo, demoOrders, handleCreateDemoOrder }: 
-  { address?: PublicKey, isDemo: boolean, demoOrders: ProtectedPosition[], handleCreateDemoOrder: (position: ProtectedPosition ) => void }
+  { address, isDemo, demoOrders, handleCreateDemoOrder, hedgeMutation }: 
+  { address?: PublicKey, isDemo: boolean, demoOrders: ProtectedPosition[], handleCreateDemoOrder: (position: ProtectedPosition ) => void, hedgeMutation: any }
 ){
     const { tradeData, selectedToken, tokenAmount, minPortfolioValue } = useTradeContext();
-    const { loopnHedgeMutation } = useDriftProgramAccount(address);
     return (
       <>
       {
@@ -38,7 +36,7 @@ export function CreateHedgeButton(
               )) 
               :
               () =>
-              loopnHedgeMutation.mutate({
+              hedgeMutation.mutate({
                 usdcDeposit: tradeData.collateral,
                 baseAssetAmount: new anchor.BN(tokenAmount).mul(BASE_PRECISION),
                 marketIndex: selectedToken.marketIndex,

@@ -5,27 +5,26 @@ import { ProtectedPosition, getProtectedPositions } from '../drift/utils/order-u
 import { getMarketConfigByIndex } from '../drift/utils/perp-utils';
 import { formatTokenAmount } from '../drift/utils/math-utils';
 import { PRICE_PRECISION } from '../drift/utils/constants';
-import { useDriftProgramAccount, useDriftUserData } from '../drift/drift-access';
 import { PublicKey } from '@solana/web3.js';
+import { UserAccount } from '../drift/types';
 
 
 // todo: status needs to be tracked via backend (sol)
 // todo: do not allow duplicate positions
 export function UserPositions(
   {
-    address,
     isDemo,
     demoOrders,
     handleCancelDemoOrder, 
+    subAccountData,
+    cancelMutation
   }: { 
-    address?: PublicKey,
     isDemo: boolean,
     demoOrders: ProtectedPosition[],
-    handleCancelDemoOrder: ((orderId: number) => void), 
+    handleCancelDemoOrder: ((orderId: number) => void),
+    subAccountData: UserAccount[] | undefined,
+    cancelMutation: any
   }) {
-    const { subAccountData } = useDriftUserData(address);
-    const { cancelOrderMutation } = useDriftProgramAccount(address);
-
   // todo: handle status updates for orders
   const protectedPositions:  ProtectedPosition[] = isDemo ? demoOrders : getProtectedPositions(subAccountData)
   return (
@@ -80,7 +79,7 @@ export function UserPositions(
                             demoOrders.length > 0 ?  
                             () => handleCancelDemoOrder(position.openId) :
                             () =>
-                              cancelOrderMutation.mutate({
+                              cancelMutation.mutate({
                                 openId: position.openId,
                                 closeId: position.closeId,
                                 subAccountId: position.subAccountId,

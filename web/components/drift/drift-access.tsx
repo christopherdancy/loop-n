@@ -7,7 +7,6 @@ import {
   convertUSDCtoSmallestUnit,
 } from './utils/math-utils';
 import { 
-  DEFAULT_USER_NAME,
   PRICE_PRECISION,
 } from './utils/constants';
 import { 
@@ -113,43 +112,6 @@ export function useDriftProgramMarketData() {
   };
 }
 
-export function useDriftUserData(account?: PublicKey) {
-  const { 
-    program
-   } = useDriftProgram();
-    const [subAccountData, setSubAccountData] = useState<UserAccount[] | undefined>(undefined);
-
-    const fetchSubAccountData = async () => {
-      if (!account) return;
-      try {
-        const userStatsPublicKey = getUserStatsAccountPublicKey(program.programId, account)
-        const userStatsData = await program.account.userStats.fetch(userStatsPublicKey) as UserStatsAccount;
-        let userSubAccounts: UserAccount[] = [];
-        for (let i = 0; i < userStatsData.numberOfSubAccountsCreated; i++) {
-          const subAccount = await getUserAccountPublicKey(program.programId, account, i);
-          const subAccountData = await program.account.user.fetch(subAccount) as UserAccount;
-          userSubAccounts.push(subAccountData);
-        }
-        
-        setSubAccountData(userSubAccounts);
-      } catch (fetchError) {
-        console.error("User account does not exist.")
-        setSubAccountData(undefined);
-      } finally {
-      }
-    };
-
-
-  useEffect(() => {
-    fetchSubAccountData();
-  }, [program.programId, account]);
-  
-
-  return {
-    subAccountData,
-  };
-}
-
 export function useDriftProgramAccount(account?: PublicKey) {
   const transactionToast = useTransactionToast();
   const { 
@@ -163,13 +125,12 @@ export function useDriftProgramAccount(account?: PublicKey) {
   const [statePublicKey, setStatePublicKey] = useState<PublicKey | undefined>(undefined);
   const [vaultPublicKey, setVaultPublicKey] = useState<PublicKey | undefined>(undefined);
   const [subAccountId, setSubAccountId] = useState(0);
-  const [, setIsLoadingPublicKeys] = useState(true);
   const [signerPublicKey, setSignerPublicKey] = useState<PublicKey | undefined>(undefined);
-  const [isLoadingUserAccount, setIsLoadingUserAccount] = useState(true);
+
+  const [subAccountData, setSubAccountData] = useState<UserAccount[] | undefined>(undefined);
   
   const fetchPublicKeys = async () => {
     if (!account) return;
-    setIsLoadingPublicKeys(true);
     try {
       const userStatsPublicKey = getUserStatsAccountPublicKey(program.programId, account)
       setUserStatsPublicKey(userStatsPublicKey)
@@ -184,7 +145,26 @@ export function useDriftProgramAccount(account?: PublicKey) {
     } catch (err) {
       console.error(err)
     } finally {
-      setIsLoadingPublicKeys(false);
+    }
+  };
+
+  const fetchSubAccountData = async () => {
+    if (!account) return;
+    try {
+      const userStatsPublicKey = getUserStatsAccountPublicKey(program.programId, account)
+      const userStatsData = await program.account.userStats.fetch(userStatsPublicKey) as UserStatsAccount;
+      let userSubAccounts: UserAccount[] = [];
+      for (let i = 0; i < userStatsData.numberOfSubAccountsCreated; i++) {
+        const subAccount = await getUserAccountPublicKey(program.programId, account, i);
+        const subAccountData = await program.account.user.fetch(subAccount) as UserAccount;
+        userSubAccounts.push(subAccountData);
+      }
+      
+      setSubAccountData(userSubAccounts);
+    } catch (fetchError) {
+      console.error("Positions do not exist.")
+      setSubAccountData(undefined);
+    } finally {
     }
   };
 
@@ -192,6 +172,7 @@ export function useDriftProgramAccount(account?: PublicKey) {
   useEffect(() => {
     if (account) {
       fetchPublicKeys();
+      fetchSubAccountData();
     }
   }, [program.programId, account]);
   
@@ -241,9 +222,10 @@ export function useDriftProgramAccount(account?: PublicKey) {
 
     onSuccess: (txSig) => {
       transactionToast(txSig);
+      fetchSubAccountData();
     },
     onError: (error) => {
-      console.error("Failed to initialize user and stats:", error);
+      console.error("Failed to create hedge:", error);
     },
   });
   
@@ -283,6 +265,7 @@ export function useDriftProgramAccount(account?: PublicKey) {
     },
     onSuccess: (txSig) => {
       transactionToast(txSig);
+      fetchSubAccountData();
     },
     onError: (error) => {
       console.error("Failed to cancel order:", error);
@@ -292,6 +275,7 @@ export function useDriftProgramAccount(account?: PublicKey) {
   return {
     loopnHedgeMutation,
     cancelOrderMutation,
+    subAccountData
   };
 }
 
