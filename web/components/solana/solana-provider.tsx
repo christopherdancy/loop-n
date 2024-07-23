@@ -13,6 +13,10 @@ import {
 import { WalletModalProvider } from '@solana/wallet-adapter-react-ui';
 import { ReactNode, useCallback, useMemo } from 'react';
 import { useCluster } from '../cluster/cluster-data-access';
+import {
+  PhantomWalletAdapter,
+} from '@solana/wallet-adapter-wallets';
+
 
 require('@solana/wallet-adapter-react-ui/styles.css');
 
@@ -29,9 +33,16 @@ export function SolanaProvider({ children }: { children: ReactNode }) {
     console.error(error);
   }, []);
 
+  const wallets = useMemo(
+    () => [
+      new PhantomWalletAdapter(),
+    ],
+    [endpoint]
+  );
+
   return (
     <ConnectionProvider endpoint={endpoint}>
-      <WalletProvider wallets={[]} onError={onError} autoConnect={true}>
+      <WalletProvider wallets={wallets} onError={onError} autoConnect={true}>
         <WalletModalProvider>{children}</WalletModalProvider>
       </WalletProvider>
     </ConnectionProvider>
