@@ -52,20 +52,35 @@ export const SupportedTokens: PerpMarketConfig[] =
 		marginRatioInitial: 1000,
 		marginRatioMaintenance: 500,
 	},
-	{
-		fullName: 'WIF',
-		category: ['Meme', 'Dog', 'Solana'],
-		symbol: 'WIF-PERP',
-		baseAssetSymbol: 'WIF',
-		marketIndex: 23,
-		oracle: new PublicKey('g6eRCbboSwK4tSWngn773RCMexr1APQr4uA9bGZBYfo'),
-		launchTs: 1706219971000,
-		oracleSource: OracleSource.PYTH,
-		logoURI: "logos/wif.png",
-		pythId: "0x4ca4beeca86f0d164160323817a4e42b10010a724c2217c6ee41b54cd4cc61fc",
-		marginRatioInitial: 2500,
-		marginRatioMaintenance: 1250,
-	}
+  // {
+	// 	fullName: 'Ethereum',
+	// 	category: ['L1', 'Infra'],
+	// 	symbol: 'ETH-PERP',
+	// 	baseAssetSymbol: 'ETH',
+	// 	marketIndex: 2,
+	// 	oracle: new PublicKey('6bEp2MiyoiiiDxcVqE8rUHQWwHirXUXtKfAEATTVqNzT'),
+	// 	launchTs: 1637691133472,
+	// 	oracleSource: OracleSource.PYTH,
+  //   logoURI: "logos/eth.svg",
+	// 	pythId:
+	// 		'0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace',
+  //   marginRatioInitial: 500,
+	// 	marginRatioMaintenance: 400,
+	// }
+	// {
+	// 	fullName: 'WIF',
+	// 	category: ['Meme', 'Dog', 'Solana'],
+	// 	symbol: 'WIF-PERP',
+	// 	baseAssetSymbol: 'WIF',
+	// 	marketIndex: 23,
+	// 	oracle: new PublicKey('g6eRCbboSwK4tSWngn773RCMexr1APQr4uA9bGZBYfo'),
+	// 	launchTs: 1706219971000,
+	// 	oracleSource: OracleSource.PYTH,
+	// 	logoURI: "logos/wif.png",
+	// 	pythId: "0x4ca4beeca86f0d164160323817a4e42b10010a724c2217c6ee41b54cd4cc61fc",
+	// 	marginRatioInitial: 2500,
+	// 	marginRatioMaintenance: 1250,
+	// }
 ]
 
 export function createDummyMarket(marketIndex: number, name: string, marginRatioInitial: number, marginRatioMaintenance: number): PerpMarketAccount {

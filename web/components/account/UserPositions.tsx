@@ -5,7 +5,6 @@ import { ProtectedPosition, getProtectedPositions } from '../drift/utils/order-u
 import { getMarketConfigByIndex } from '../drift/utils/perp-utils';
 import { formatTokenAmount } from '../drift/utils/math-utils';
 import { PRICE_PRECISION } from '../drift/utils/constants';
-import { PublicKey } from '@solana/web3.js';
 import { UserAccount } from '../drift/types';
 
 
