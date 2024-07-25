@@ -15,6 +15,7 @@ import { useDriftProgramAccount } from "../drift/drift-access";
 export function PortfolioHedge({ address }: { address: PublicKey | undefined }) {
     const [selectedToken, setSelectedToken] = useState(SupportedTokens[0]);
     const [tokenAmount, setTokenAmount] = useState('');
+    const [protectedPercentage, setProtectedPercentage] = useState('');
     const [minPortfolioValue, setMinPortfolioValue] = useState('');
     const [solBalance, setSolBalance] = useState(0);
     const [isDemo, setIsDemo] = useState(true);
@@ -27,7 +28,7 @@ export function PortfolioHedge({ address }: { address: PublicKey | undefined }) 
       if (token) {
         setSelectedToken(token) 
         setTokenAmount('')
-        setMinPortfolioValue('')
+        setProtectedPercentage('')
       };
     };
     
@@ -39,14 +40,14 @@ export function PortfolioHedge({ address }: { address: PublicKey | undefined }) 
       }
     };
   
-    const handleMinPortfolioValue = (e: { target: { value: any } }) => {
+    const handleProtectedPercentage = (e: { target: { value: any } }) => {
       const value = e.target.value.replace(/[^0-9.]/g, ''); // Remove all non-numeric characters except for the decimal point
-      if (parseFloat(value) > estimatedWorth){
+      if (parseFloat(value) > 100){
         return
       } else if (value === '') {
-        setMinPortfolioValue('')
+        setProtectedPercentage('')
       } else {
-        setMinPortfolioValue(`$${value}`)
+        setProtectedPercentage(`${value}`)
       }
     };
 
@@ -75,17 +76,21 @@ export function PortfolioHedge({ address }: { address: PublicKey | undefined }) 
   
     // Adjust minPortfolioValue if it exceeds estimatedWorth
     useEffect(() => {
-      const minValue = parseFloat(minPortfolioValue.slice(1));
-      if (minValue > estimatedWorth) {
+      if (isNaN(parseFloat(protectedPercentage)) || tokenAmount === '') {
         setMinPortfolioValue('');
+        setProtectedPercentage('');
+      } else {
+        const protectedValue = `$${((estimatedWorth * parseFloat(protectedPercentage)) / 100).toFixed()}`
+        setMinPortfolioValue(protectedValue);
       }
-    }, [estimatedWorth, minPortfolioValue]);
-
+    }, [estimatedWorth, protectedPercentage, tokenAmount]);
   
     // proper logic for account fees without market or inputs + reorg
     // account fees for account creation is .02 but I am unsure where this is coming from
     // update collateral information usdc + solona fee
     // indicate what fee (denom) it is in
+
+    // todo: remove string notion from minportfoliovlaue
     return (
       <TradeProvider selectedToken={selectedToken} minPortfolioValue={minPortfolioValue} tokenAmount={tokenAmount} estimatedWorth={estimatedWorth} isDemo>
       <div className="max-w-md mx-auto bg-white p-8 rounded-3xl shadow-md">
@@ -107,7 +112,7 @@ export function PortfolioHedge({ address }: { address: PublicKey | undefined }) 
             <span>I own</span>
             {address && <UserWalletBalance address={address} selectedToken={selectedToken} setTokenAmount={setTokenAmount} setSolBalance={setSolBalance}></UserWalletBalance>}
           </div>
-          <div className="py-2 grid grid-cols-3 gap-4 items-center">
+          <div className="py-4 grid grid-cols-3 gap-4 items-center">
             <input
               type="text"
               value={tokenAmount}
@@ -117,25 +122,33 @@ export function PortfolioHedge({ address }: { address: PublicKey | undefined }) 
             />
             <TokenSelector selectedToken={selectedToken} onTokenChange={handleTokenChange} />
           </div>
-          <div className='text-left pl-1'>
-          <span>${estimatedWorth.toFixed(2)}</span>
+          <div className='text-left text-sm pl-1'>
+            <span>${estimatedWorth.toFixed(2)}<span className='text-sm text-gray-500'> current value</span></span>
+          </div>
+          <div className='text-left text-sm pl-1 text-red-400'>
+            {/* todo: 30 day low */}
+            <span>${!tokenAmount ? (0).toFixed(2) : (parseFloat(tokenAmount) * 130).toFixed(2)}<span className='text-sm'> 30 day low</span></span>
           </div>
         </div>
         <div className="bg-gray-50 p-4 rounded-2xl mb-4 font-mono">
           <div className="flex justify-between items-left mb-2 pl-1">
             <span>I want to protect</span>
           </div>
-          <div className="py-2 grid grid-cols-3 gap-4 items-center">
-          <input
-              type="text"
-              value={minPortfolioValue}
-              onChange={handleMinPortfolioValue}
-              className="pl-1 rounded-3xl w-full text-3xl col-span-2 bg-gray-50 focus:outline-none focus:ring-0"
-              placeholder="$0"
-            />
+          <div className="py-4 grid grid-cols-3 gap-6 items-center">
+            <div className="flex items-center col-span-2 bg-gray-50 rounded-3xl">
+              <input
+                type="text"
+                value={protectedPercentage}
+                onChange={handleProtectedPercentage}
+                className="pl-1 w-full text-3xl bg-gray-50 focus:outline-none focus:ring-0"
+                placeholder="0"
+              />
+              <span className="pr-36 text-3xl text-gray-400">%</span>
+            </div>
           </div>
-          <div className='text-left pl-1'>
-            <span>{calculateCoverage(minPortfolioValue, estimatedWorth)}<span className='text-sm text-gray-500'>% of current value</span></span>
+          <div className='text-left text-sm pl-1'>
+            <span>{isNaN(parseFloat(minPortfolioValue.slice(1))) ? "$0" : minPortfolioValue}
+            <span className='text-gray-500'> protected value</span></span>
           </div>
         </div>
         <CoverageFees solBalance={solBalance} />

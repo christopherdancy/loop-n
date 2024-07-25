@@ -21,7 +21,7 @@ export function CreateHedgeButton(
           <div
             className="p-4 rounded-xl bg-gray-500 w-full text-white font-semibold font-mono cursor-default pointer-events-none text-sm"
           >
-            {!tradeData ? "Data Not Loaded" : tokenAmount && !minPortfolioValue ? "Missing Min. HODL Value" : "Missing HODL Position"}
+            {!tradeData ? "Data Not Loaded" : tokenAmount && !minPortfolioValue ? "Missing Protection %" : "Missing Asset Holdings"}
           </div> 
         :
           <button
